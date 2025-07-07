@@ -1,0 +1,16 @@
+{
+  "name": "Календарь с делами",
+  "short_name": "Календарь",
+  "description": "Организуйте свой день с помощью календаря",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4CAF50",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
