@@ -21,7 +21,7 @@ export default function MonthView() {
     setRepeatingTasks(saved ? JSON.parse(saved) : []);
   }, [selectedDate]);
   // --- Получаем настройки графика ---
-  const [schedule, setSchedule] = useState(() => {
+  const [schedule] = useState(() => {
     const saved = localStorage.getItem('calendar-schedule');
     return saved ? JSON.parse(saved) : {
       from: new Date().toISOString().slice(0, 10),

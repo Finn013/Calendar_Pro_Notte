@@ -1,7 +1,6 @@
 
 import { useApp } from '../../context/AppContext';
 import { Hexagon, Square, X } from 'lucide-react';
-import { useState, useEffect } from 'react';
 
 const animationOptions = [
   { value: 'fade', label: 'Плавное появление' },

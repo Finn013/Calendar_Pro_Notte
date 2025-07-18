@@ -14,13 +14,11 @@ const LockScreen: React.FC<LockScreenProps> = ({ theme, onUnlock }) => {
   const [newPin, setNewPin] = useState('');
   const [error, setError] = useState('');
   const [showPin, setShowPin] = useState(false);
-  const [hasPin, setHasPin] = useState(false);
 
   useEffect(() => {
     const savedPin = localStorage.getItem(PIN_KEY);
     if (savedPin) {
       setPin(savedPin);
-      setHasPin(true);
       setStep('enter');
     } else {
       setStep('set');
@@ -58,7 +56,6 @@ const LockScreen: React.FC<LockScreenProps> = ({ theme, onUnlock }) => {
     if (input === newPin) {
       localStorage.setItem(PIN_KEY, newPin);
       setPin(newPin);
-      setHasPin(true);
       setInput('');
       setNewPin('');
       setStep('enter');
@@ -110,9 +107,6 @@ const LockScreen: React.FC<LockScreenProps> = ({ theme, onUnlock }) => {
   const handleReset = () => {
     localStorage.removeItem(PIN_KEY);
     setPin('');
-    setHasPin(false);
-    setInput('');
-    setNewPin('');
     setStep('set');
     setError('PIN сброшен!');
   };

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { FileText, Database, Info, Share, Upload, Settings as SettingsIcon, List as ListIcon, FileText as FileTextIcon, Calendar as CalendarIcon } from 'lucide-react';
+import { FileText, Database, Share, Upload, Settings as SettingsIcon, List as ListIcon, FileText as FileTextIcon, Calendar as CalendarIcon } from 'lucide-react';
 
 const BUTTON_COLORS = [
   '#3B82F6', '#EF4444', '#10B981', '#F59E42', '#A78BFA', '#F472B6', '#FBBF24', '#374151', '#E5E7EB', '#111827', '#22D3EE', '#F87171'
@@ -25,7 +25,6 @@ export default function SettingsView2({ onBack }: { onBack: () => void }) {
     const saved = localStorage.getItem('section-backgrounds');
     return saved ? JSON.parse(saved) : { main: '', lists: '', notes: '' };
   });
-  const [bgInput, setBgInput] = useState<{ type: 'image' | 'gradient'; section: 'main' | 'lists' | 'notes'; value: string }>({ type: 'gradient', section: 'main', value: '' });
   const [pendingBg, setPendingBg] = useState<{ [key in 'main' | 'lists' | 'notes']?: string }>({});
   const [pendingGradient, setPendingGradient] = useState<{ [key in 'main' | 'lists' | 'notes']?: { color1: string; color2: string } }>({});
   const defaultGradient = { color1: '#f472b6', color2: '#60a5fa' };
@@ -68,15 +67,6 @@ export default function SettingsView2({ onBack }: { onBack: () => void }) {
   // Смена цвета кнопок
   const handleButtonColorChange = (buttonColor: string) => {
     dispatch({ type: 'UPDATE_SETTINGS', payload: { buttonColor } });
-  };
-
-  // Смена порядка разделов
-  const moveSection = (from: number, to: number) => {
-    if (to < 0 || to >= settings.mainScreenOrder.length) return;
-    const newOrder = [...settings.mainScreenOrder];
-    const [removed] = newOrder.splice(from, 1);
-    newOrder.splice(to, 0, removed);
-    dispatch({ type: 'UPDATE_SETTINGS', payload: { mainScreenOrder: newOrder } });
   };
 
   // Drag&Drop для порядка разделов с ghost и touch

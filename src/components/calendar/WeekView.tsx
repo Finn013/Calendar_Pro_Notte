@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, Clock, Plus, X, Check, Copy, Trash2, Palette, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
 export default function WeekView() {
@@ -20,7 +20,7 @@ export default function WeekView() {
     setRepeatingTasks(saved ? JSON.parse(saved) : []);
   }, [selectedDate]);
   // --- Получаем настройки графика ---
-  const [schedule, setSchedule] = useState(() => {
+  const [schedule] = useState(() => {
     const saved = localStorage.getItem('calendar-schedule');
     return saved ? JSON.parse(saved) : {
       from: new Date().toISOString().slice(0, 10),
@@ -46,15 +46,8 @@ export default function WeekView() {
     return schedule.restIcon;
   }
   const [showTimeModal, setShowTimeModal] = useState<string | null>(null);
-  const [showDayMenu, setShowDayMenu] = useState<string | null>(null);
-  const [showColorPicker, setShowColorPicker] = useState<string | null>(null);
   const [newTimeEntry, setNewTimeEntry] = useState({ hours: 0, minutes: 0, description: '' });
   const [draggedTask, setDraggedTask] = useState<{ taskId: string; date: string } | null>(null);
-
-  const colors = [
-    '#3B82F6', '#EF4444', '#10B981', '#F59E0B',
-    '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'
-  ];
 
   const getWeekDates = () => {
     const startOfWeek = new Date(selectedDate);
@@ -205,46 +198,6 @@ export default function WeekView() {
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
     return { hours, minutes, totalMinutes };
-  };
-
-  const handleDayMenuAction = (date: Date, action: string) => {
-    const dateKey = formatDateKey(date);
-    
-    switch (action) {
-      case 'complete-all':
-        const dayData = getDayData(date);
-        dayData.tasks.forEach(task => {
-          if (!task.completed) {
-            updateTask(date, task.id, { completed: true });
-          }
-        });
-        break;
-      case 'copy-tasks':
-        const dayToCopy = getDayData(date);
-        const tasksText = dayToCopy.tasks.map(task => 
-          `${task.completed ? '✓' : '○'} ${task.text}`
-        ).join('\n');
-        navigator.clipboard.writeText(tasksText);
-        break;
-      case 'clear-all':
-        const dayToClear = getDayData(date);
-        dayToClear.tasks.forEach(task => {
-          deleteTask(date, task.id);
-        });
-        break;
-      case 'color':
-        setShowColorPicker(dateKey);
-        break;
-    }
-    setShowDayMenu(null);
-  };
-
-  const setDayColor = (date: Date, color: string) => {
-    dispatch({
-      type: 'SET_DAY_COLOR',
-      payload: { date: formatDateKey(date), color }
-    });
-    setShowColorPicker(null);
   };
 
   const handleTaskDragStart = (e: React.DragEvent, taskId: string, date: Date) => {

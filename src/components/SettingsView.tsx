@@ -1,12 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Upload, Share, FileText, Database, Smartphone, Palette, Type, Square, Info } from 'lucide-react';
-// Удаляю: import { useApp } from '../context/AppContext';
-// Удаляю: import type { AppState } from '../context/AppContext';
-// Удаляю: const { state, dispatch } = useApp();
-// Удаляю: const { settings } = state;
-// Удаляю: все обращения к state, settings, dispatch, AppState, calendar-app-data
-// Везде использую только localSettings и updateSettings для внешнего вида и порядка разделов
-import { updateSW } from '../main';
+import { ArrowLeft, Upload, Share, FileText, Database } from 'lucide-react';
 
 
 interface SettingsViewProps {
@@ -29,7 +22,6 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
     const saved = localStorage.getItem('section-backgrounds');
     return saved ? JSON.parse(saved) : { main: '', lists: '', notes: '' };
   });
-  const [bgInput, setBgInput] = useState<{ type: 'image' | 'gradient'; section: 'main' | 'lists' | 'notes'; value: string }>({ type: 'gradient', section: 'main', value: '' });
   const [pendingBg, setPendingBg] = useState<{ [key in 'main' | 'lists' | 'notes']?: string }>({});
   const [pendingGradient, setPendingGradient] = useState<{ [key in 'main' | 'lists' | 'notes']?: { color1: string; color2: string } }>({});
   const defaultGradient = { color1: '#f472b6', color2: '#60a5fa' };
@@ -43,15 +35,6 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
   const handlePendingGradient = (section: 'main' | 'lists' | 'notes', color1: string, color2: string) => {
     setPendingGradient(gr => ({ ...gr, [section]: { color1, color2 } }));
     setPendingBg(bg => ({ ...bg, [section]: `linear-gradient(to bottom, ${color1}, ${color2})` }));
-  };
-  const handleApplyBg = (section: 'main' | 'lists' | 'notes') => {
-    setSectionBackgrounds(bg => {
-      const updated = { ...bg, [section]: pendingBg[section] || bg[section] };
-      localStorage.setItem('section-backgrounds', JSON.stringify(updated));
-      return updated;
-    });
-    setPendingBg(bg => ({ ...bg, [section]: undefined }));
-    setPendingGradient(gr => ({ ...gr, [section]: undefined }));
   };
 
   const getFontSizeClass = () => {
@@ -119,21 +102,6 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
     updateSettings({ mainScreenOrder: newOrder });
     setDraggedItem(null);
   };
-
-  const sectionNames = {
-    date: 'Текущая дата',
-    calendar: 'Календарь',
-    notes: 'Быстрые заметки',
-    lists: 'Списки'
-  };
-
-  const buttonColors = [
-    '#3B82F6', '#EF4444', '#10B981', '#F59E0B',
-    '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16',
-    '#6B7280', '#1F2937'
-  ];
-
-
 
   const getDataStats = () => {
     // Удаляю: state, days, notes, lists
@@ -305,7 +273,7 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
                       const reader = new FileReader();
                       reader.onload = (ev) => {
                         try {
-                          const data = JSON.parse(ev.target?.result as string);
+                          JSON.parse(ev.target?.result as string);
                           // This functionality was removed, so this import is now a placeholder
                           alert('Импорт данных пока не поддерживается.');
                         } catch (error) {
@@ -546,7 +514,6 @@ export default function SettingsView({ onBack }: SettingsViewProps) {
           {/* Info Section */}
           <div className={`rounded-xl shadow-lg p-4 sm:p-6 ${localSettings.theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
             <h2 className={`text-lg font-bold mb-4 flex items-center gap-2 ${getFontSizeClass()} ${localSettings.theme === 'dark' ? 'text-white' : 'text-gray-800'}`}>
-              <Info className="w-5 h-5" />
               Информация
             </h2>
 

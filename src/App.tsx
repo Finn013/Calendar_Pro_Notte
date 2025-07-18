@@ -5,12 +5,11 @@ import { AppProvider, useApp } from './context/AppContext';
 import CalendarView from './components/CalendarView';
 import NotesView from './components/NotesView';
 import ListsView from './components/ListsView';
-import SettingsView from './components/SettingsView';
 import SettingsView2 from './components/SettingsView2';
 import LockScreen from './components/LockScreen';
 
 function MainApp() {
-  const { state, dispatch } = useApp();
+  const { state } = useApp();
   const { settings } = state;
   const calendarSettings = settings.calendarSettings || { todayColor: '#EF4444', dayShape: 'rounded', animationType: 'slide' };
   const [currentView, setCurrentView] = useState<'main' | 'calendar' | 'notes' | 'lists' | 'settings' | 'settings2'>('main');

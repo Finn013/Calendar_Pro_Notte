@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Settings, Trash2, Plus, Edit2, Check, X as CloseIcon } from 'lucide-react';
+import { ArrowLeft, Settings, Trash2, Edit2, Check, X as CloseIcon } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import YearView from './calendar/YearView';
 import MonthView from './calendar/MonthView';
@@ -34,7 +34,7 @@ export default function CalendarView({ onBack }: CalendarViewProps) {
   const [reminderStatus, setReminderStatus] = useState('');
 
   // --- Состояния для графика работы/выходных ---
-  const [schedule, setSchedule] = useState(() => {
+  const [schedule] = useState(() => {
     const saved = localStorage.getItem('calendar-schedule');
     return saved ? JSON.parse(saved) : {
       from: new Date().toISOString().slice(0, 10),
@@ -46,9 +46,6 @@ export default function CalendarView({ onBack }: CalendarViewProps) {
       showIcons: { year: true, month: true, week: true }
     };
   });
-  const [scheduleStatus, setScheduleStatus] = useState('');
-  // --- Состояния для повторяющихся задач ---
-  const iconSet = ['💼','🏖️','🎓','🏋️','🎉','🛒','🧘','📚','🧑‍💻','🚗','🍔','🎨','🌲','🌞','🌧️','❄️','❤️'];
   const [repeatingTasks, setRepeatingTasks] = useState<{ type: 'monthly' | 'weekly' | 'yearly'; day: number; month?: number; weekday?: number; icon: string; text: string; color: string }[]>(() => {
     const saved = localStorage.getItem('calendar-repeating-tasks');
     const arr = saved ? JSON.parse(saved) : [];
@@ -83,13 +80,6 @@ export default function CalendarView({ onBack }: CalendarViewProps) {
   const [editTaskIndex, setEditTaskIndex] = useState<number | null>(null);
   const [editTask, setEditTask] = useState<{ type: 'monthly' | 'weekly' | 'yearly'; day: number; month: number; weekday: number; icon: string; text: string; color: string } | null>(null);
   const [draggedTaskIdx, setDraggedTaskIdx] = useState<number | null>(null);
-  const [searchTask, setSearchTask] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'monthly' | 'weekly' | 'yearly'>('all');
-  const [filterIcon, setFilterIcon] = useState<string>('all');
-
-  // --- Состояния для фонов календаря ---
-  const [bgInput, setBgInput] = useState<{ type: 'image' | 'gradient'; view: 'year' | 'month' | 'week'; value: string }>({ type: 'gradient', view: 'year', value: '' });
-  // --- Состояния для выделения дня ---
   const [highlightShape, setHighlightShape] = useState<'rounded' | 'square' | 'circle' | 'octagon'>(() => {
     const saved = localStorage.getItem('calendar-highlight-shape');
     if (saved === 'rounded' || saved === 'square' || saved === 'circle' || saved === 'octagon') return saved;
@@ -129,26 +119,6 @@ export default function CalendarView({ onBack }: CalendarViewProps) {
   const [pendingGradient, setPendingGradient] = useState<{ [key in 'year' | 'month' | 'week']?: { color1: string; color2: string } }>({});
   const defaultGradient = { color1: '#f472b6', color2: '#60a5fa' };
 
-  const handlePendingBg = (view: 'year' | 'month' | 'week', value: string) => {
-    setPendingBg(bg => ({ ...bg, [view]: value }));
-    setPendingGradient(gr => ({ ...gr, [view]: undefined }));
-  };
-  const handlePendingGradient = (view: 'year' | 'month' | 'week', color1: string, color2: string) => {
-    setPendingGradient(gr => ({ ...gr, [view]: { color1, color2 } }));
-    const gradient = `linear-gradient(to bottom, ${color1}, ${color2})`;
-    setPendingBg(bg => ({ ...bg, [view]: gradient }));
-    // Применяем градиент мгновенно
-    dispatch({ type: 'UPDATE_CALENDAR_BACKGROUNDS', payload: { ...state.calendarBackgrounds, [view]: gradient } });
-  };
-  const handleApplyBg = (view: 'year' | 'month' | 'week') => {
-    dispatch({ type: 'UPDATE_CALENDAR_BACKGROUNDS', payload: { ...state.calendarBackgrounds, [view]: pendingBg[view] || state.calendarBackgrounds[view] } });
-    setPendingBg(bg => ({ ...bg, [view]: undefined }));
-    setPendingGradient(gr => ({ ...gr, [view]: undefined }));
-  };
-  const colorPalette = [
-    '#f472b6', '#60a5fa', '#fbbf24', '#34d399', '#a78bfa', '#f87171', '#fbbf24', '#6b7280', '#f3f4f6', '#1f2937', '#fff', '#000'
-  ];
-  // --- Функции для выбора фона ---
   const handleBgFileChange = (e: React.ChangeEvent<HTMLInputElement>, view: 'year' | 'month' | 'week') => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -230,35 +200,6 @@ export default function CalendarView({ onBack }: CalendarViewProps) {
     if (window.confirm('Удалить все прошедшие напоминания?')) {
       setReminders((reminders: { time: string; text: string; shown: boolean }[]) => reminders.filter((r: { time: string }) => new Date(r.time) >= now));
     }
-  };
-
-  const handleScheduleChange = (field: string, value: any) => {
-    setSchedule((sch: typeof schedule) => ({ ...sch, [field]: value }));
-  };
-
-  const handleToggleShowIcon = (view: 'year' | 'month' | 'week') => {
-    setSchedule((sch: typeof schedule) => ({ ...sch, showIcons: { ...sch.showIcons, [view]: !sch.showIcons[view] } }));
-  };
-
-  // Кнопка удаления графика с подтверждением
-  const handleDeleteSchedule = () => {
-    if (window.confirm('Удалить текущий график?')) {
-      setSchedule({
-        from: new Date().toISOString().slice(0, 10),
-        to: new Date(new Date().getFullYear(), 11, 31).toISOString().slice(0, 10),
-        workDays: 5,
-        restDays: 2,
-        workIcon: '💼',
-        restIcon: '🏖️',
-        showIcons: { year: true, month: true, week: true }
-      });
-      setScheduleStatus('График удалён.');
-    }
-  };
-  // Кнопка 'Добавить' (сохраняет текущий график)
-  const handleAddSchedule = () => {
-    setSchedule(schedule); // Просто обновляет localStorage и статус
-    setScheduleStatus('График сохранён!');
   };
 
   const getFontSizeClass = () => {
@@ -402,7 +343,6 @@ export default function CalendarView({ onBack }: CalendarViewProps) {
 
   // Функции для drag&drop
   const handleDragStartTask = (idx: number) => setDraggedTaskIdx(idx);
-  const handleDragOverTask = (e: React.DragEvent, idx: number) => { e.preventDefault(); };
   const handleDropTask = (idx: number) => {
     if (draggedTaskIdx === null || draggedTaskIdx === idx) return;
     setRepeatingTasks(tasks => {
@@ -415,62 +355,6 @@ export default function CalendarView({ onBack }: CalendarViewProps) {
     setDraggedTaskIdx(null);
   };
   const handleDragEndTask = () => setDraggedTaskIdx(null);
-
-  // Экспорт повторяющихся задач
-  const handleExportRepeatingTasks = () => {
-    const data = JSON.stringify(repeatingTasks, null, 2);
-    const blob = new Blob([data], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'repeating_tasks.json';
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-  // Импорт повторяющихся задач
-  const handleImportRepeatingTasks = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const imported = JSON.parse(ev.target?.result as string);
-        if (Array.isArray(imported) && imported.every(t => t.text && t.icon && t.type)) {
-          if (window.confirm('Импорт заменит все текущие повторяющиеся задачи. Продолжить?')) {
-            setRepeatingTasks(imported.map((t: any) => ({ ...t, color: t.color || '#F472B6' })));
-            localStorage.setItem('calendar-repeating-tasks', JSON.stringify(imported.map((t: any) => ({ ...t, color: t.color || '#F472B6' }))));
-          }
-        } else {
-          alert('Файл не содержит корректный список задач.');
-        }
-      } catch {
-        alert('Ошибка чтения файла.');
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
-
-  // Фильтрация и поиск задач
-  const filteredTasks = repeatingTasks.filter(t => {
-    const matchesText = t.text.toLowerCase().includes(searchTask.toLowerCase());
-    const matchesType = filterType === 'all' || t.type === filterType;
-    const matchesIcon = filterIcon === 'all' || t.icon === filterIcon;
-    return matchesText && matchesType && matchesIcon;
-  });
-
-  // Палитра популярных градиентов
-  const gradientPalette = [
-    'linear-gradient(90deg, #f472b6, #60a5fa)',
-    'linear-gradient(90deg, #fbbf24, #34d399)',
-    'linear-gradient(90deg, #a78bfa, #f472b6)',
-    'linear-gradient(90deg, #f87171, #fbbf24)',
-    'linear-gradient(90deg, #60a5fa, #a78bfa)',
-    'linear-gradient(90deg, #34d399, #f472b6)',
-    'linear-gradient(90deg, #f59e42, #fbbf24)',
-    'linear-gradient(90deg, #6b7280, #f3f4f6)',
-    'linear-gradient(90deg, #1f2937, #f472b6)'
-  ];
 
   // --- Функция переключения чекбоксов отображения иконок повторяющихся задач ---
   const handleToggleRepeatingShowIcon = (view: 'year' | 'month' | 'week') => {
@@ -789,7 +673,7 @@ export default function CalendarView({ onBack }: CalendarViewProps) {
                       </>
                     )}
                     <select value={newRepeatingTask.icon} onChange={e => setNewRepeatingTask(t => ({ ...t, icon: e.target.value }))} className="border rounded px-2 py-1">
-                      {iconSet.map(icon => <option key={icon} value={icon}>{icon}</option>)}
+                      {['💼', '🏖️', '🎉', '🎂', '🎁', '🎈', '🎀', '🎊', '🎈', '🎉'].map(icon => <option key={icon} value={icon}>{icon}</option>)}
                     </select>
                     <input type="text" value={newRepeatingTask.text} onChange={e => setNewRepeatingTask(t => ({ ...t, text: e.target.value }))} className="border rounded px-2 py-1 flex-1" placeholder="Текст задачи" />
                     <select value={newRepeatingTask.color} onChange={e => setNewRepeatingTask(t => ({ ...t, color: e.target.value }))} className="border rounded px-2 py-1">
@@ -819,14 +703,12 @@ export default function CalendarView({ onBack }: CalendarViewProps) {
                       </button>
                     )}
                     <ul className="list-disc list-inside mt-1">
-                      {filteredTasks.length === 0 && <li>Нет задач</li>}
-                      {filteredTasks.map((t, i) => (
+                      {repeatingTasks.map((t, i) => (
                         <li
                           key={i}
                           className={`flex items-center gap-2 ${draggedTaskIdx === i ? 'bg-yellow-100' : ''}`}
                           draggable
                           onDragStart={() => handleDragStartTask(i)}
-                          onDragOver={e => handleDragOverTask(e, i)}
                           onDrop={() => handleDropTask(i)}
                           onDragEnd={handleDragEndTask}
                           style={{ cursor: 'grab' }}
@@ -861,7 +743,7 @@ export default function CalendarView({ onBack }: CalendarViewProps) {
                                 </>
                               )}
                               <select value={editTask.icon} onChange={e => setEditTask(et => et ? { ...et, icon: e.target.value } : et)} className="border rounded px-2 py-1">
-                                {iconSet.map(icon => <option key={icon} value={icon}>{icon}</option>)}
+                                {['💼', '🏖️', '🎉', '🎂', '🎁', '🎈', '🎀', '🎊', '🎈', '🎉'].map(icon => <option key={icon} value={icon}>{icon}</option>)}
                               </select>
                               <input type="text" value={editTask.text} onChange={e => setEditTask(et => et ? { ...et, text: e.target.value } : et)} className="border rounded px-2 py-1 flex-1" placeholder="Текст задачи" />
                               <select value={editTask.color} onChange={e => setEditTask(et => et ? { ...et, color: e.target.value } : et)} className="border rounded px-2 py-1">
@@ -909,12 +791,12 @@ export default function CalendarView({ onBack }: CalendarViewProps) {
                     </label>
                     <label>Иконка работы
                       <select value={newSchedule.workIcon} onChange={e => setNewSchedule(s => ({ ...s, workIcon: e.target.value }))} className="border rounded px-2 py-1 mx-1">
-                        {iconSet.map(icon => <option key={icon} value={icon}>{icon}</option>)}
+                        {['💼', '🏖️', '🎉', '🎂', '🎁', '🎈', '🎀', '🎊', '🎈', '🎉'].map(icon => <option key={icon} value={icon}>{icon}</option>)}
                       </select>
                     </label>
                     <label>Иконка отдыха
                       <select value={newSchedule.restIcon} onChange={e => setNewSchedule(s => ({ ...s, restIcon: e.target.value }))} className="border rounded px-2 py-1 mx-1">
-                        {iconSet.map(icon => <option key={icon} value={icon}>{icon}</option>)}
+                        {['💼', '🏖️', '🎉', '🎂', '🎁', '🎈', '🎀', '🎊', '🎈', '🎉'].map(icon => <option key={icon} value={icon}>{icon}</option>)}
                       </select>
                     </label>
                     <button className="btn-rotate px-4 py-2 rounded-lg bg-green-600 text-white font-bold" onClick={handleAddScheduleToList} title="Добавить график">Добавить</button>
@@ -933,10 +815,10 @@ export default function CalendarView({ onBack }: CalendarViewProps) {
                               <input type="number" min={1} max={31} value={editSchedule.workDays} onChange={e => setEditSchedule((s: any) => ({ ...s, workDays: +e.target.value }))} className="border rounded px-2 py-1 w-16" />
                               <input type="number" min={1} max={31} value={editSchedule.restDays} onChange={e => setEditSchedule((s: any) => ({ ...s, restDays: +e.target.value }))} className="border rounded px-2 py-1 w-16" />
                               <select value={editSchedule.workIcon} onChange={e => setEditSchedule((s: any) => ({ ...s, workIcon: e.target.value }))} className="border rounded px-2 py-1">
-                                {iconSet.map(icon => <option key={icon} value={icon}>{icon}</option>)}
+                                {['💼', '🏖️', '🎉', '🎂', '🎁', '🎈', '🎀', '🎊', '🎈', '🎉'].map(icon => <option key={icon} value={icon}>{icon}</option>)}
                               </select>
                               <select value={editSchedule.restIcon} onChange={e => setEditSchedule((s: any) => ({ ...s, restIcon: e.target.value }))} className="border rounded px-2 py-1">
-                                {iconSet.map(icon => <option key={icon} value={icon}>{icon}</option>)}
+                                {['💼', '🏖️', '🎉', '🎂', '🎁', '🎈', '🎀', '🎊', '🎈', '🎉'].map(icon => <option key={icon} value={icon}>{icon}</option>)}
                               </select>
                               <button className="btn-rotate px-2 py-1 rounded bg-green-600 text-white" onClick={handleSaveEditSchedule} title="Сохранить"><Check className="w-4 h-4" /></button>
                               <button className="btn-rotate px-2 py-1 rounded bg-gray-300 text-gray-700" onClick={handleCancelEditSchedule} title="Отмена"><CloseIcon className="w-4 h-4" /></button>
@@ -989,24 +871,24 @@ export default function CalendarView({ onBack }: CalendarViewProps) {
                         <div className="flex flex-col gap-2 mt-1">
                           <div className="flex gap-2 items-center">
                             <span>Верхний цвет:</span>
-                            {colorPalette.map(color => (
+                            {colorSet.map(color => (
                               <button
                                 key={color}
-                                className={`w-8 h-8 rounded-full border-2 ${pendingGradient[view]?.color1 === color ? 'border-blue-500 scale-110' : 'border-gray-300'} btn-rotate`}
+                                className={`w-8 h-8 rounded-full border-2 ${pendingBg[view] === color ? 'border-blue-500 scale-110' : 'border-gray-300'} btn-rotate`}
                                 style={{ backgroundColor: color }}
-                                onClick={() => handlePendingGradient(view, color, pendingGradient[view]?.color2 || defaultGradient.color2)}
+                                onClick={() => handleBgGradientChange(view, color)}
                                 title={color}
                               />
                             ))}
                           </div>
                           <div className="flex gap-2 items-center">
                             <span>Нижний цвет:</span>
-                            {colorPalette.map(color => (
+                            {colorSet.map(color => (
                               <button
                                 key={color}
                                 className={`w-8 h-8 rounded-full border-2 ${pendingGradient[view]?.color2 === color ? 'border-blue-500 scale-110' : 'border-gray-300'} btn-rotate`}
                                 style={{ backgroundColor: color }}
-                                onClick={() => handlePendingGradient(view, pendingGradient[view]?.color1 || defaultGradient.color1, color)}
+                                onClick={() => handleBgGradientChange(view, color)}
                                 title={color}
                               />
                             ))}
