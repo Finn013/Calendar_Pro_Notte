@@ -4,7 +4,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  base: '/Calendar_Notte_pro/',
+  base: '/Calendar_Pro_Notte/',
   plugins: [
     react(),
     VitePWA({
@@ -13,7 +13,7 @@ export default defineConfig({
         name: 'Calendar Pro Notte',
         short_name: 'Calendar Pro',
         description: 'Профессиональный календарь с заметками и списками',
-        start_url: '/',
+        start_url: '/Calendar_Pro_Notte/',
         display: 'standalone',
         theme_color: '#3B82F6',
         background_color: '#ffffff',
@@ -44,7 +44,7 @@ export default defineConfig({
         ],
         skipWaiting: false,
         clientsClaim: false,
-        navigateFallback: '/index.html',
+        navigateFallback: '/Calendar_Pro_Notte/index.html',
         cleanupOutdatedCaches: false
       },
       injectRegister: false // не регистрируем автоматически, будем вручную
