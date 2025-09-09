@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useSwipeGestures } from '../../hooks/useSwipeGestures';
 

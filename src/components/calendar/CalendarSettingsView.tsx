@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { ArrowLeft, Trash2, GripVertical, Plus, Save, Briefcase, Heart, Gift, Pill, Dumbbell, ShoppingCart, Book, Car, Plane, Home, PawPrint, Star } from 'lucide-react';
+import { ArrowLeft, Trash2, GripVertical, Plus, Briefcase, Heart, Gift, Pill, Dumbbell, ShoppingCart, Book, Car, Plane, Home, PawPrint, Star } from 'lucide-react';
 import AlertDialog from '../shared/AlertDialog';
-import { RepeatingTask } from '../../context/AppContext';
 
 // --- Библиотека иконок ---
 export const iconLibrary = {
@@ -126,13 +125,6 @@ export default function CalendarSettingsView({ onBack }: { onBack: () => void })
     newTasks.splice(index, 0, draggedItem);
     dispatch({ type: 'SET_REPEATING_TASKS', payload: newTasks });
     draggedTask.current = null;
-  };
-
-  const handleApplyVisuals = () => {
-    dispatch({ type: 'UPDATE_SETTINGS', payload: { calendarSettings: { ...settings.calendarSettings, todayColor: highlightColor, dayShape: highlightShape, animationType: animationType as any } } });
-    dispatch({ type: 'UPDATE_CALENDAR_BACKGROUNDS', payload: backgrounds });
-    setAlertContent({ title: 'Сохранено', message: 'Настройки вида обновлены.', onConfirm: () => setIsAlertOpen(false), onCancel: () => setIsAlertOpen(false) });
-    setIsAlertOpen(true);
   };
 
   const handleBackWithSave = () => {

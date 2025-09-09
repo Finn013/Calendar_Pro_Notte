@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { ChevronLeft, ChevronRight, Plus, MoreVertical, Trash2, Palette, Star, CheckCircle, ArrowRight, Smile } from 'lucide-react';
-import { AnimatePresence, motion } from 'framer-motion';
-import AlertDialog from '../shared/AlertDialog';
+import { motion, AnimatePresence } from 'framer-motion';
 import { getRepeatingTasksForDate } from '../../utils/calendarUtils';
 import { iconLibrary } from './CalendarSettingsView';
 import DayDetailView from './DayDetailView';

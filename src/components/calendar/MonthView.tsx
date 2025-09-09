@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { getRepeatingTasksForDate } from '../../utils/calendarUtils';
@@ -48,7 +48,7 @@ export default function MonthView({ settings: propSettings }: { settings?: any }
   };
 
   const [isDetailViewOpen, setIsDetailViewOpen] = useState(false);
-  const [detailViewDate, setDetailViewDate] = useState(new Date());
+  const [detailViewDate] = useState(new Date());
 
   // Поддержка свайпов для навигации по месяцам
   const swipeRef = useSwipeGestures({

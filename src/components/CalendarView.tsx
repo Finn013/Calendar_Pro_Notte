@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { ArrowLeft, Settings } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import YearView from './calendar/YearView';
@@ -34,7 +34,7 @@ export default function CalendarView({ onBack, onGoToSettings }: CalendarViewPro
     slide: { initial: { opacity: 0, x: 40 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: -40 } },
   };
 
-  function getCalendarVariants(type: string): { initial: any; animate: any; exit: any } {
+  function getCalendarVariants(): { initial: any; animate: any; exit: any } {
     const animType = settings.calendarSettings?.animationType || 'slide';
     return calendarBaseVariants[animType as keyof typeof calendarBaseVariants] || calendarBaseVariants['slide'];
   }
@@ -71,9 +71,9 @@ export default function CalendarView({ onBack, onGoToSettings }: CalendarViewPro
 
         <div className={`rounded-xl shadow-lg overflow-hidden ${settings.theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
           <AnimatePresence mode="wait">
-            {currentView === 'year' && <motion.div key="year" variants={getCalendarVariants('year')} initial="initial" animate="animate" exit="exit"><YearView settings={settings} /></motion.div>}
-            {currentView === 'month' && <motion.div key="month" variants={getCalendarVariants('month')} initial="initial" animate="animate" exit="exit"><MonthView settings={settings} /></motion.div>}
-            {currentView === 'week' && <motion.div key="week" variants={getCalendarVariants('week')} initial="initial" animate="animate" exit="exit"><WeekView settings={settings} /></motion.div>}
+            {currentView === 'year' && <motion.div key="year" variants={getCalendarVariants()} initial="initial" animate="animate" exit="exit"><YearView settings={settings} /></motion.div>}
+            {currentView === 'month' && <motion.div key="month" variants={getCalendarVariants()} initial="initial" animate="animate" exit="exit"><MonthView settings={settings} /></motion.div>}
+            {currentView === 'week' && <motion.div key="week" variants={getCalendarVariants()} initial="initial" animate="animate" exit="exit"><WeekView settings={settings} /></motion.div>}
           </AnimatePresence>
         </div>
       </div>
