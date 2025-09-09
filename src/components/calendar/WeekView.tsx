@@ -1,506 +1,260 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
+import { ChevronLeft, ChevronRight, Plus, MoreVertical, Trash2, Palette, Star, CheckCircle, ArrowRight, Smile } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import AlertDialog from '../shared/AlertDialog';
+import { getRepeatingTasksForDate } from '../../utils/calendarUtils';
+import { iconLibrary } from './CalendarSettingsView';
+import DayDetailView from './DayDetailView';
+import { useSwipeGestures } from '../../hooks/useSwipeGestures';
 
-export default function WeekView() {
+const IconComponent = ({ name, ...props }: { name: string, [key: string]: any }) => {
+  const Icon = iconLibrary[name as keyof typeof iconLibrary] || Star;
+  return <Icon {...props} />;
+};
+
+// --- ОСНОВНОЙ КОМПОНЕНТ ---
+export default function WeekView({ settings: propSettings }: { settings?: any }) {
   const { state, dispatch } = useApp();
-  const { selectedDate, days, settings } = state;
-  const calendarSettings = settings.calendarSettings || { todayColor: '#EF4444', dayShape: 'rounded', animationType: 'slide' };
+  const { selectedDate, days, settings: contextSettings, repeatingTasks, calendarBackgrounds } = state;
+  const settings = propSettings || contextSettings;
+  
+  // Получаем настройки календаря для применения стилей выделения
+  const calendarSettings = settings.calendarSettings || { todayColor: '#EF4444', dayShape: 'rounded' };
 
-  // --- Новое: получаем настройку отображения иконок повторяющихся задач ---
-  const [repeatingShowIcons, setRepeatingShowIcons] = useState<{ week: boolean }>({ week: true });
-  useEffect(() => {
-    const saved = localStorage.getItem('calendar-repeating-showIcons');
-    setRepeatingShowIcons(saved ? JSON.parse(saved) : { week: true });
-  }, [selectedDate]);
-  // --- Получаем повторяющиеся задачи ---
-  const [repeatingTasks, setRepeatingTasks] = useState<any[]>([]);
-  useEffect(() => {
-    const saved = localStorage.getItem('calendar-repeating-tasks');
-    setRepeatingTasks(saved ? JSON.parse(saved) : []);
-  }, [selectedDate]);
-  // --- Получаем настройки графика ---
-  const [schedule] = useState(() => {
-    const saved = localStorage.getItem('calendar-schedule');
-    return saved ? JSON.parse(saved) : {
-      from: new Date().toISOString().slice(0, 10),
-      to: new Date(new Date().getFullYear(), 11, 31).toISOString().slice(0, 10),
-      workDays: 5,
-      restDays: 2,
-      workIcon: '💼',
-      restIcon: '🏖️',
-      showIcons: { year: true, month: true, week: true }
-    };
+  const [currentWeek, setCurrentWeek] = useState(() => getWeekDays(selectedDate));
+  const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [isDetailViewOpen, setIsDetailViewOpen] = useState(false);
+  const [detailViewDate, setDetailViewDate] = useState(new Date());
+
+  // Поддержка свайпов для навигации по неделям
+  const swipeRef = useSwipeGestures({
+    onSwipeLeft: () => navigateWeek(1),
+    onSwipeRight: () => navigateWeek(-1)
   });
-  // --- Функция для определения, рабочий или выходной день ---
-  function getScheduleIcon(date: Date) {
-    if (!schedule.showIcons?.week) return null;
-    const from = new Date(schedule.from);
-    const to = new Date(schedule.to);
-    if (date < from || date > to) return null;
-    const dayIndex = Math.floor((date.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
-    const cycle = schedule.workDays + schedule.restDays;
-    if (cycle === 0) return null;
-    const pos = dayIndex % cycle;
-    if (pos < schedule.workDays) return schedule.workIcon;
-    return schedule.restIcon;
+
+  useEffect(() => {
+    setCurrentWeek(getWeekDays(selectedDate));
+  }, [selectedDate, days, repeatingTasks]);
+
+  const openDetailView = (date: Date) => {
+    setDetailViewDate(date);
+    setIsDetailViewOpen(true);
   }
-  const [showTimeModal, setShowTimeModal] = useState<string | null>(null);
-  const [newTimeEntry, setNewTimeEntry] = useState({ hours: 0, minutes: 0, description: '' });
-  const [draggedTask, setDraggedTask] = useState<{ taskId: string; date: string } | null>(null);
 
-  const getWeekDates = () => {
-    const startOfWeek = new Date(selectedDate);
-    const day = startOfWeek.getDay();
-    const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1);
-    startOfWeek.setDate(diff);
-
+  function getWeekDays(date: Date) {
+    const start = new Date(date);
+    const dayOfWeek = start.getDay();
+    const diff = start.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+    start.setDate(diff);
     return Array.from({ length: 7 }, (_, i) => {
-      const date = new Date(startOfWeek);
-      date.setDate(startOfWeek.getDate() + i);
-      return date;
-    });
-  };
-
-  const formatDateKey = (date: Date) => {
-    return new Intl.DateTimeFormat('ru-RU', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    }).format(date).replace(/\./g, '-');
-  };
-
-  const getDayData = (date: Date) => {
-    const key = formatDateKey(date);
-    return state.days[key] || { tasks: [], timeEntries: [] };
-  };
-
-  const getWeekTime = () => {
-    const weekDates = getWeekDates();
-    let totalMinutes = 0;
-    
-    weekDates.forEach(date => {
-      const dayData = getDayData(date);
-      totalMinutes += dayData.timeEntries.reduce((sum, entry) => 
-        sum + (entry.hours * 60) + entry.minutes, 0
-      );
-    });
-    
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    return `${hours}:${minutes.toString().padStart(2, '0')}`;
-  };
-
-  const getMonthTime = () => {
-    const currentMonth = selectedDate.getMonth();
-    const currentYear = selectedDate.getFullYear();
-    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    let totalMinutes = 0;
-    
-    for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(currentYear, currentMonth, day);
-      const dateKey = formatDateKey(date);
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      const dateKey = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
       const dayData = days[dateKey];
-      if (dayData && dayData.timeEntries) {
-        totalMinutes += dayData.timeEntries.reduce((sum, entry) => 
-          sum + (entry.hours * 60) + entry.minutes, 0
-        );
-      }
-    }
-    
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    return `${hours}:${minutes.toString().padStart(2, '0')}`;
-  };
-
-  const addTask = (date: Date) => {
-    const task = {
-      id: Date.now().toString(),
-      text: '',
-      completed: false,
-      createdAt: Date.now()
-    };
-
-    dispatch({
-      type: 'ADD_TASK',
-      payload: { date: formatDateKey(date), task }
-    });
-  };
-
-  const updateTask = (date: Date, taskId: string, updates: any) => {
-    dispatch({
-      type: 'UPDATE_TASK',
-      payload: { date: formatDateKey(date), taskId, updates }
-    });
-  };
-
-  const deleteTask = (date: Date, taskId: string) => {
-    dispatch({
-      type: 'DELETE_TASK',
-      payload: { date: formatDateKey(date), taskId }
-    });
-  };
-
-  const reorderTasks = (date: Date, draggedTaskId: string, targetTaskId: string) => {
-    const dateKey = formatDateKey(date);
-    const dayData = getDayData(date);
-    const tasks = [...dayData.tasks];
-    
-    const draggedIndex = tasks.findIndex(task => task.id === draggedTaskId);
-    const targetIndex = tasks.findIndex(task => task.id === targetTaskId);
-    
-    if (draggedIndex === -1 || targetIndex === -1) return;
-    
-    const [draggedTask] = tasks.splice(draggedIndex, 1);
-    tasks.splice(targetIndex, 0, draggedTask);
-    
-    dispatch({
-      type: 'SET_DAY_DATA',
-      payload: { 
-        date: dateKey, 
-        data: { ...dayData, tasks }
-      }
-    });
-  };
-
-  const addTimeEntry = (date: Date) => {
-    if (newTimeEntry.hours > 0 || newTimeEntry.minutes > 0) {
-      const entry = {
-        id: Date.now().toString(),
-        hours: newTimeEntry.hours,
-        minutes: newTimeEntry.minutes,
-        description: newTimeEntry.description
+      const totalMinutes = dayData?.timeEntries?.reduce((acc, curr) => acc + (curr.hours * 60) + curr.minutes, 0) || 0;
+      return { 
+          date: d, dateKey, name: d.toLocaleString('ru-RU', { weekday: 'long' }), 
+          tasks: dayData?.tasks || [], color: dayData?.color, icon: dayData?.icon,
+          totalTime: totalMinutes > 0 ? `${Math.floor(totalMinutes/60)}ч ${totalMinutes%60}м` : null
       };
-
-      dispatch({
-        type: 'ADD_TIME_ENTRY',
-        payload: { date: formatDateKey(date), entry }
-      });
-
-      setNewTimeEntry({ hours: 0, minutes: 0, description: '' });
-      setShowTimeModal(null);
-    }
-  };
-
-  const deleteTimeEntry = (date: Date, entryId: string) => {
-    dispatch({
-      type: 'DELETE_TIME_ENTRY',
-      payload: { date: formatDateKey(date), entryId }
     });
-  };
+  }
 
-  const getTotalTime = (date: Date) => {
-    const dayData = getDayData(date);
-    const totalMinutes = dayData.timeEntries.reduce((total, entry) => {
-      return total + (entry.hours * 60) + entry.minutes;
-    }, 0);
-
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    return { hours, minutes, totalMinutes };
-  };
-
-  const handleTaskDragStart = (e: React.DragEvent, taskId: string, date: Date) => {
-    setDraggedTask({ taskId, date: formatDateKey(date) });
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleTaskDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleTaskDrop = (e: React.DragEvent, targetTaskId: string, date: Date) => {
-    e.preventDefault();
-    
-    if (!draggedTask || draggedTask.date !== formatDateKey(date)) {
-      setDraggedTask(null);
-      return;
-    }
-    
-    reorderTasks(date, draggedTask.taskId, targetTaskId);
-    setDraggedTask(null);
-  };
-
-  const getFontSizeClass = () => {
-    switch (settings.fontSize) {
-      case 'small': return 'text-sm';
-      case 'large': return 'text-xl';
-      default: return 'text-lg';
-    }
-  };
-
-  const navigateWeek = (direction: 'prev' | 'next') => {
+  const navigateWeek = (direction: number) => {
     const newDate = new Date(selectedDate);
-    newDate.setDate(newDate.getDate() + (direction === 'next' ? 7 : -7));
+    newDate.setDate(newDate.getDate() + direction * 7);
     dispatch({ type: 'SET_SELECTED_DATE', payload: newDate });
   };
 
-  const weekDates = getWeekDates();
-  const today = new Date();
-  const weekTime = getWeekTime();
-  const monthTime = getMonthTime();
+  const { weekTime, monthTime } = useMemo(() => {
+      let weekMinutes = 0;
+      currentWeek.forEach(day => {
+          const dayData = days[day.dateKey];
+          if(dayData?.timeEntries) {
+              weekMinutes += dayData.timeEntries.reduce((acc, curr) => acc + (curr.hours * 60) + curr.minutes, 0);
+          }
+      });
+
+      let monthMinutes = 0;
+      const month = selectedDate.getMonth();
+      const year = selectedDate.getFullYear();
+      for (const dateKey in days) {
+          const [dYear, dMonth] = dateKey.split('-').map(Number);
+          if (dYear === year && dMonth === month + 1) {
+              monthMinutes += days[dateKey].timeEntries?.reduce((acc, curr) => acc + (curr.hours * 60) + curr.minutes, 0) || 0;
+          }
+      }
+
+      return {
+          weekTime: weekMinutes > 0 ? `${Math.floor(weekMinutes/60)}ч ${weekMinutes%60}м` : null,
+          monthTime: monthMinutes > 0 ? `${Math.floor(monthMinutes/60)}ч ${monthMinutes%60}м` : null,
+      }
+  }, [currentWeek, days, selectedDate]);
+
+  const handleTaskAdd = (dateKey: string, text: string) => dispatch({ type: 'ADD_TASK', payload: { date: dateKey, task: { id: Date.now().toString(), text, completed: false, createdAt: Date.now() } } });
+  const handleTaskUpdate = (dateKey: string, taskId: string, updates: any) => dispatch({ type: 'UPDATE_TASK', payload: { date: dateKey, taskId, updates } });
+  const handleTaskDelete = (dateKey: string, taskId: string) => dispatch({ type: 'DELETE_TASK', payload: { date: dateKey, taskId } });
+  const handleDayColor = (dateKey: string, color: string) => dispatch({ type: 'SET_DAY_COLOR', payload: { date: dateKey, color } });
+  const handleDayIcon = (dateKey: string, icon: string) => dispatch({ type: 'SET_DAY_ICON', payload: { date: dateKey, icon } });
+  const handleCompleteAll = (dateKey: string) => { days[dateKey]?.tasks.forEach(t => !t.completed && handleTaskUpdate(dateKey, t.id, { completed: true })); setActiveMenu(null); };
+  const handleMoveAll = (date: Date) => {
+    const dateKey = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+    const tomorrow = new Date(date); tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowKey = `${tomorrow.getFullYear()}-${tomorrow.getMonth() + 1}-${tomorrow.getDate()}`;
+    days[dateKey]?.tasks.filter(t => !t.completed).forEach(t => { handleTaskDelete(dateKey, t.id); handleTaskAdd(tomorrowKey, t.text); });
+    setActiveMenu(null);
+  };
 
   return (
-    <div className="p-4 sm:p-6" style={(state.calendarBackgrounds.week || '').startsWith('data:') ? { backgroundImage: `url(${state.calendarBackgrounds.week})`, backgroundSize: 'cover', backgroundPosition: 'center' } : state.calendarBackgrounds.week ? { background: state.calendarBackgrounds.week } : {}}>
-      <div className="flex items-center justify-between mb-6">
-        <button
-          onClick={() => navigateWeek('prev')}
-          className={`p-2 rounded-lg transition-colors ${settings.theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
-        >
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-        <div className={`text-lg sm:text-xl font-bold ${getFontSizeClass()} ${settings.theme === 'dark' ? 'text-white' : 'text-gray-800'}`}
-        >
-          Неделя {weekDates[0].getDate()} - {weekDates[6].getDate()} {new Intl.DateTimeFormat('ru-RU', { month: 'long', year: 'numeric' }).format(weekDates[0])}
+    <div 
+      className="p-2 sm:p-4" 
+      onClick={() => setActiveMenu(null)}
+      ref={swipeRef as any}
+      style={calendarBackgrounds.week ? (
+        calendarBackgrounds.week.startsWith('data:') 
+          ? { backgroundImage: `url(${calendarBackgrounds.week})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+          : { background: calendarBackgrounds.week }
+      ) : {}}
+    >
+      <div className="flex justify-between items-center mb-4">
+        <button onClick={() => navigateWeek(-1)} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"><ChevronLeft /></button>
+        <div className="text-center">
+            <h2 className={`text-xl font-bold tracking-wider ${settings.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{currentWeek[0].date.toLocaleString('ru-RU', { month: 'long', year: 'numeric' }).toUpperCase()}</h2>
+            <div className={`text-xs font-semibold ${settings.theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} flex justify-center gap-4 mt-1`}>
+                {weekTime && <span>Неделя: <span className="text-green-600 dark:text-green-400">{weekTime}</span></span>}
+                {monthTime && <span>Месяц: <span className="text-green-600 dark:text-green-400">{monthTime}</span></span>}
+            </div>
         </div>
-        <button
-          onClick={() => navigateWeek('next')}
-          className={`p-2 rounded-lg transition-colors ${settings.theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
-        >
-          <ChevronRight className="w-5 h-5" />
-        </button>
+        <button onClick={() => navigateWeek(1)} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"><ChevronRight /></button>
       </div>
-      <div className={`text-center mb-6 ${settings.theme === 'dark' ? 'text-white' : 'text-gray-800'}`}> 
-        <div className={`text-sm font-medium mt-1 ${settings.theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>Неделя: {weekTime} | Месяц: {monthTime}</div>
+      <div className="space-y-4">
+        {currentWeek.map(day => <DayCard key={day.dateKey} day={day} repeatingTasks={repeatingTasks} activeMenu={activeMenu} setActiveMenu={setActiveMenu} onTaskAdd={handleTaskAdd} onTaskUpdate={handleTaskUpdate} onTaskDelete={handleTaskDelete} onSetColor={handleDayColor} onSetIcon={handleDayIcon} onCompleteAll={handleCompleteAll} onMoveAll={handleMoveAll} openDetailView={openDetailView} calendarSettings={calendarSettings} settings={settings} />)}
       </div>
-
-      <div className="space-y-4 sm:space-y-6">
-        {weekDates.map((date) => {
-          const dayData = getDayData(date);
-          const isToday = date.toDateString() === today.toDateString();
-          const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-          const dateKey = formatDateKey(date);
-          const totalTime = getTotalTime(date);
-
-          // Sort tasks: incomplete first, then completed
-          const sortedTasks = [...dayData.tasks].sort((a, b) => {
-            if (a.completed === b.completed) return 0;
-            return a.completed ? 1 : -1;
-          });
-
-          return (
-            <div
-              key={dateKey}
-              className={`rounded-lg border-2 overflow-hidden transition-all duration-200 hover:shadow-xl ${
-                isToday
-                  ? 'shadow-lg'
-                  : isWeekend
-                    ? settings.theme === 'dark'
-                      ? 'border-red-400 bg-red-900/20'
-                      : 'border-red-200 bg-red-50'
-                    : settings.theme === 'dark'
-                      ? 'border-gray-600 bg-gray-800'
-                      : 'border-gray-200 bg-white'
-              } ${isToday ? `${calendarSettings.dayShape === 'rounded' ? 'rounded-lg' : calendarSettings.dayShape === 'square' ? 'rounded-none' : calendarSettings.dayShape === 'circle' ? 'rounded-full' : 'octagon-btn'} border-4` : ''}`}
-              style={isToday ? { borderColor: calendarSettings.todayColor } : {}}
-            >
-              {/* Day Header */}
-              <div className={`p-3 sm:p-4 border-b flex items-center justify-between ${
-                isToday
-                  ? 'text-black'
-                  : isWeekend
-                    ? settings.theme === 'dark'
-                      ? 'bg-red-800 text-red-100'
-                      : 'bg-red-100 text-red-800'
-                    : settings.theme === 'dark'
-                      ? 'bg-gray-700 text-gray-200'
-                      : 'bg-gray-50 text-gray-800'
-              }`}
-              style={isToday ? { backgroundColor: calendarSettings.todayColor } : {}}
-            >
-                <div>
-                  <h3 className={`font-bold ${getFontSizeClass()} capitalize`}>
-                    {new Intl.DateTimeFormat('ru-RU', { weekday: 'long' }).format(date)}
-                  </h3>
-                  <p className={`text-sm ${getFontSizeClass()}`}>
-                    {date.getDate()} {new Intl.DateTimeFormat('ru-RU', { month: 'long' }).format(date)}
-                  </p>
-                </div>
-                {/* Показываем иконку графика, если включено в настройках графика */}
-                {schedule.showIcons?.week && getScheduleIcon(date) && (
-                  <span title="График" style={{ fontSize: '1.1em', marginLeft: 2 }}>{getScheduleIcon(date)}</span>
-                )}
-                {/* Показываем иконки повторяющихся задач, если включено в настройках */}
-                {repeatingShowIcons.week && repeatingTasks.filter(t => {
-                  if (t.type === 'weekly') return t.weekday === date.getDay();
-                  if (t.type === 'monthly') return t.day === date.getDate();
-                  if (t.type === 'yearly') return t.day === date.getDate() && t.month === (date.getMonth() + 1);
-                  return false;
-                }).map((t, idx) => (
-                  <span key={idx} title={t.text} style={{ color: t.color, fontSize: '1.1em', marginLeft: 2 }}>{t.icon}</span>
-                ))}
-              </div>
-
-              {/* Tasks */}
-              <div className="p-3 sm:p-4 space-y-2">
-                {sortedTasks.map((task) => (
-                  <div
-                    key={task.id}
-                    draggable={!task.completed}
-                    onDragStart={(e) => handleTaskDragStart(e, task.id, date)}
-                    onDragOver={handleTaskDragOver}
-                    onDrop={(e) => handleTaskDrop(e, task.id, date)}
-                    className={`flex items-center gap-3 p-2 sm:p-3 rounded-lg cursor-move ${
-                      task.completed
-                        ? settings.theme === 'dark'
-                          ? 'bg-gray-700 opacity-60'
-                          : 'bg-gray-100 opacity-60'
-                        : settings.theme === 'dark'
-                          ? 'bg-gray-700'
-                          : 'bg-gray-50'
-                    } ${draggedTask?.taskId === task.id ? 'opacity-50' : ''}`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={task.completed}
-                      onChange={(e) => updateTask(date, task.id, { completed: e.target.checked })}
-                      className="w-5 h-5 rounded"
-                    />
-                    <input
-                      type="text"
-                      value={task.text}
-                      onChange={(e) => updateTask(date, task.id, { text: e.target.value })}
-                      placeholder="Введите задачу..."
-                      className={`flex-1 bg-transparent border-none outline-none ${getFontSizeClass()} ${
-                        task.completed ? 'line-through text-gray-500' : ''
-                      } ${settings.theme === 'dark' ? 'text-gray-200 placeholder-gray-400' : 'text-gray-800 placeholder-gray-500'}`}
-                    />
-                    <button
-                      onClick={() => deleteTask(date, task.id)}
-                      className="text-red-500 hover:text-red-700 p-1"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-
-                <button
-                  onClick={() => addTask(date)}
-                  className={`w-full p-3 border-2 border-dashed rounded-lg flex items-center justify-center gap-2 transition-colors ${getFontSizeClass()} ${
-                    settings.theme === 'dark'
-                      ? 'border-gray-600 text-gray-400 hover:border-gray-500 hover:text-gray-300'
-                      : 'border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-600'
-                  }`}
-                >
-                  <Plus className="w-5 h-5" />
-                  Добавить дело
-                </button>
-              </div>
-
-              {/* Time Display */}
-              {totalTime.totalMinutes > 0 && (
-                <div className={`px-3 sm:px-4 pb-3 sm:pb-4 ${getFontSizeClass()}`}>
-                  <div className={`p-3 rounded-lg ${
-                    settings.theme === 'dark' ? 'bg-green-900 text-green-100' : 'bg-green-100 text-green-800'
-                  }`}>
-                    <div className="font-medium flex items-center justify-between">
-                      <span>Время за день: {totalTime.hours}ч {totalTime.minutes}м</span>
-                    </div>
-                    {dayData.timeEntries.map((entry) => (
-                      <div key={entry.id} className="text-sm mt-1 flex items-center justify-between">
-                        <span>
-                          {entry.hours}ч {entry.minutes}м
-                          {entry.description && ` - ${entry.description}`}
-                        </span>
-                        <button
-                          onClick={() => deleteTimeEntry(date, entry.id)}
-                          className="text-red-500 hover:text-red-700 ml-2"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Time Modal */}
-      {showTimeModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className={`rounded-lg p-6 w-full max-w-md ${
-            settings.theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white'
-          }`}>
-            <h3 className={`text-lg font-bold mb-4 ${getFontSizeClass()}`}>Добавить время</h3>
-            
-            <div className="space-y-4">
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <label className={`block text-sm font-medium mb-1 ${getFontSizeClass()}`}>Часы</label>
-                  <select
-                    value={newTimeEntry.hours}
-                    onChange={(e) => setNewTimeEntry({ ...newTimeEntry, hours: parseInt(e.target.value) })}
-                    className={`w-full p-2 border rounded-lg ${getFontSizeClass()} ${
-                      settings.theme === 'dark' 
-                        ? 'bg-gray-700 border-gray-600 text-white' 
-                        : 'border-gray-300'
-                    }`}
-                  >
-                    {Array.from({ length: 25 }, (_, i) => (
-                      <option key={i} value={i}>{i}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex-1">
-                  <label className={`block text-sm font-medium mb-1 ${getFontSizeClass()}`}>Минуты</label>
-                  <select
-                    value={newTimeEntry.minutes}
-                    onChange={(e) => setNewTimeEntry({ ...newTimeEntry, minutes: parseInt(e.target.value) })}
-                    className={`w-full p-2 border rounded-lg ${getFontSizeClass()} ${
-                      settings.theme === 'dark' 
-                        ? 'bg-gray-700 border-gray-600 text-white' 
-                        : 'border-gray-300'
-                    }`}
-                  >
-                    {Array.from({ length: 60 }, (_, i) => (
-                      <option key={i} value={i}>{i}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${getFontSizeClass()}`}>Описание (необязательно)</label>
-                <input
-                  type="text"
-                  value={newTimeEntry.description}
-                  onChange={(e) => setNewTimeEntry({ ...newTimeEntry, description: e.target.value })}
-                  placeholder="Что делали?"
-                  className={`w-full p-2 border rounded-lg ${getFontSizeClass()} ${
-                    settings.theme === 'dark' 
-                      ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                      : 'border-gray-300 placeholder-gray-500'
-                  }`}
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => addTimeEntry(weekDates.find(d => formatDateKey(d) === showTimeModal)!)}
-                className={`flex-1 py-2 px-4 text-white rounded-lg ${getFontSizeClass()}`}
-                style={{ backgroundColor: settings.buttonColor }}
-              >
-                Добавить
-              </button>
-              <button
-                onClick={() => setShowTimeModal(null)}
-                className={`flex-1 py-2 px-4 border rounded-lg ${getFontSizeClass()} ${
-                  settings.theme === 'dark' 
-                    ? 'border-gray-600 text-gray-300 hover:bg-gray-700' 
-                    : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                Отмена
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DayDetailView isOpen={isDetailViewOpen} onClose={() => setIsDetailViewOpen(false)} date={detailViewDate} />
     </div>
   );
 }
+
+// ... (остальные компоненты без изменений)
+const DayCard = ({ day, repeatingTasks, activeMenu, setActiveMenu, onTaskAdd, onTaskUpdate, onTaskDelete, onSetColor, onSetIcon, onCompleteAll, onMoveAll, openDetailView, calendarSettings, settings }: any) => {
+  const [isAdding, setIsAdding] = useState(false);
+  const [newTaskText, setNewTaskText] = useState('');
+  const handleAddTask = () => { if (newTaskText.trim()) { onTaskAdd(day.dateKey, newTaskText); setNewTaskText(''); setIsAdding(false); } };
+  const sortedTasks = [...day.tasks].sort((a, b) => a.completed === b.completed ? a.createdAt - b.createdAt : a.completed ? 1 : -1);
+  const dayRepeatingTasks = getRepeatingTasksForDate(day.date, repeatingTasks);
+  
+  // Проверяем, является ли этот день сегодняшним
+  const today = new Date();
+  const isToday = today.toDateString() === day.date.toDateString();
+  
+  // Получаем настройки выделения дня
+  const todayColor = calendarSettings?.todayColor || '#EF4444';
+  const dayShape = calendarSettings?.dayShape || 'rounded';
+  
+  // Функция для получения стилей выделения текущего дня
+  const getTodayStyles = () => {
+    const baseStyles = {
+      backgroundColor: todayColor,
+      color: 'white',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minWidth: '24px',
+      minHeight: '24px'
+    };
+
+    switch (dayShape) {
+      case 'square':
+        return { ...baseStyles, borderRadius: '0' };
+      case 'circle':
+        return { ...baseStyles, borderRadius: '50%' };
+      case 'octagon':
+        return { 
+          ...baseStyles, 
+          borderRadius: '0.375rem', 
+          clipPath: 'polygon(25% 0%, 75% 0%, 100% 25%, 100% 75%, 75% 100%, 25% 100%, 0% 75%, 0% 25%)'
+        };
+      case 'rounded':
+      default:
+        return { ...baseStyles, borderRadius: '0.375rem' };
+    }
+  };
+
+  return (
+    <motion.div layout style={{backgroundColor: day.color}} className="bg-white dark:bg-gray-800 rounded-xl shadow-md">
+      <div className="flex items-center justify-between p-3 bg-gray-100/80 dark:bg-gray-700/50 rounded-t-xl">
+        <div className="flex items-center gap-2">
+          {day.icon && <IconComponent name={day.icon} size={18} className="text-gray-600 dark:text-gray-300"/>}
+          <h3 className={`font-bold text-lg capitalize ${settings.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{day.name}</h3>
+          <span 
+            className={`${settings.theme === 'dark' ? 'text-gray-300' : 'text-gray-500'} ${isToday ? 'font-bold' : ''}`}
+            style={isToday ? getTodayStyles() : {}}
+          >
+            {day.date.getDate()}
+          </span>
+          {day.totalTime && <span className="text-xs font-bold text-green-600 dark:text-green-400 ml-2">{day.totalTime}</span>}
+          <div className="flex items-center gap-1.5 ml-2">{dayRepeatingTasks.map(task => <IconComponent key={task.id} name={task.icon} size={16} style={{ color: task.color }} title={task.text} />)}</div>
+        </div>
+        <div className="flex items-center gap-1">
+            <button onClick={() => openDetailView(day.date)} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600"><Plus size={18} /></button>
+            <div className="relative"><button onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu === day.dateKey ? null : day.dateKey); }} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600"><MoreVertical size={20} /></button><AnimatePresence>{activeMenu === day.dateKey && <DayMenu day={day} onSetColor={onSetColor} onSetIcon={onSetIcon} onCompleteAll={onCompleteAll} onMoveAll={onMoveAll} />}</AnimatePresence></div>
+        </div>
+      </div>
+      <div className="p-4">
+        <ul className="space-y-2">{sortedTasks.map(task => (<li key={task.id} className="flex items-center gap-3"><input type="checkbox" checked={task.completed} onChange={() => onTaskUpdate(day.dateKey, task.id, { completed: !task.completed })} className="w-5 h-5 text-blue-500 rounded focus:ring-blue-500 bg-transparent" /><span className={`flex-grow ${task.completed ? 'line-through text-gray-400' : ''}`}>{task.text}</span><button onClick={() => onTaskDelete(day.dateKey, task.id)} className="text-red-500 hover:text-red-400"><Trash2 size={18} /></button></li>))}</ul>
+        
+        {/* Постоянная кнопка добавления задачи */}
+        <button 
+          onClick={() => setIsAdding(true)} 
+          className="w-full mt-3 py-2 text-blue-500 dark:text-blue-400 font-semibold flex items-center justify-center gap-2 hover:bg-blue-50 dark:hover:bg-gray-700/50 rounded-lg border-2 border-dashed border-blue-300 dark:border-blue-500 transition-colors"
+        >
+          <Plus size={18}/>Добавить задачу
+        </button>
+        
+        {/* Поле ввода для новой задачи */}
+        {isAdding && (
+          <div className="flex gap-2 mt-3">
+            <input 
+              type="text" 
+              value={newTaskText} 
+              onChange={e => setNewTaskText(e.target.value)} 
+              onBlur={handleAddTask} 
+              onKeyPress={e => e.key === 'Enter' && handleAddTask()} 
+              autoFocus 
+              className="flex-grow p-2 border rounded dark:bg-gray-700" 
+              placeholder="Введите задачу..."
+            />
+            <button 
+              onClick={handleAddTask} 
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+            >
+              Добавить
+            </button>
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+};
+const DayMenu = ({ day, onSetColor, onSetIcon, onCompleteAll, onMoveAll }: any) => {
+  const [showPalette, setShowPalette] = useState(false);
+  const [showIconPalette, setShowIconPalette] = useState(false);
+  const colors = ['#FFFFFF', '#FEE2E2', '#FFEDD5', '#FEF3C7', '#D1FAE5', '#DBEAFE', '#E0E7FF', '#F3E8FF', '#FCE7F3', '#F0F0F0'];
+  const iconsWithColors = [ { name: 'Star', color: '#FBBF24' }, { name: 'Heart', color: '#F43F5E' }, { name: 'Briefcase', color: '#A16207' }, { name: 'Gift', color: '#EC4899' }, { name: 'Pill', color: '#3B82F6' }, { name: 'Dumbbell', color: '#4B5563' }, { name: 'ShoppingCart', color: '#10B981' }, { name: 'Book', color: '#8B5CF6' }, { name: 'Car', color: '#6D28D9' }, { name: 'Plane', color: '#0EA5E9' }, { name: 'Home', color: '#059669' }, { name: 'PawPrint', color: '#D97706' }, ];
+  const handleAction = (action: Function) => { action(); setShowPalette(false); setShowIconPalette(false); }
+
+  return (
+    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} onClick={e => e.stopPropagation()} className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-xl z-20 border dark:border-gray-700">
+      <ul className="p-1 text-sm text-gray-700 dark:text-gray-200">
+        <li onClick={() => {setShowPalette(!showPalette); setShowIconPalette(false);}} className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"><Palette size={16}/>Цвет дня</li>
+        {showPalette && <div className="flex flex-wrap gap-2 p-2 justify-center border-t dark:border-gray-700">{colors.map(color => <button key={color} onClick={() => handleAction(() => onSetColor(day.dateKey, color))} className="w-7 h-7 rounded-full border dark:border-gray-600" style={{backgroundColor: color}} />)}</div>}
+        <li onClick={() => {setShowIconPalette(!showIconPalette); setShowPalette(false);}} className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"><Smile size={16}/>Отметить иконкой</li>
+        {showIconPalette && <div className="flex flex-wrap gap-2 p-2 justify-center border-t dark:border-gray-700">{iconsWithColors.map(icon => <button key={icon.name} onClick={() => handleAction(() => onSetIcon(day.dateKey, icon.name))} className={`p-2 rounded-full ${day.icon === icon.name ? 'bg-blue-500 text-white' : 'hover:bg-gray-200 dark:hover:bg-gray-600'}`}><IconComponent name={icon.name} size={18} style={{color: icon.color}}/></button>)}</div>}
+        <div className="border-t my-1 dark:border-gray-700"></div>
+        <li onClick={() => handleAction(() => onCompleteAll(day.dateKey))} className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"><CheckCircle size={16}/>Выполнить все дела</li>
+        <li onClick={() => handleAction(() => onMoveAll(day.date))} className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"><ArrowRight size={16}/>Перенести на завтра</li>
+      </ul>
+    </motion.div>
+  );
+};

@@ -1,19 +1,37 @@
 import { useState, useEffect } from 'react';
-import { Calendar, FileText, List, Settings, Clock } from 'lucide-react';
+import { Calendar, FileText, List, Settings, Clock, ArrowLeft } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AppProvider, useApp } from './context/AppContext';
 import CalendarView from './components/CalendarView';
 import NotesView from './components/NotesView';
 import ListsView from './components/ListsView';
 import SettingsView2 from './components/SettingsView2';
-import LockScreen from './components/LockScreen';
+import CalendarSettingsView from './components/calendar/CalendarSettingsView';
+import { useSwipeGestures } from './hooks/useSwipeGestures';
 
 function MainApp() {
   const { state } = useApp();
   const { settings } = state;
   const calendarSettings = settings.calendarSettings || { todayColor: '#EF4444', dayShape: 'rounded', animationType: 'slide' };
-  const [currentView, setCurrentView] = useState<'main' | 'calendar' | 'notes' | 'lists' | 'settings' | 'settings2'>('main');
-  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [currentView, setCurrentView] = useState<'main' | 'calendar' | 'notes' | 'lists' | 'settings2' | 'calendar_settings'>('main');
+
+  // Поддержка свайпов для навигации назад
+  const swipeRef = useSwipeGestures({
+    onSwipeRight: () => {
+      if (currentView !== 'main') {
+        handleBack();
+      }
+    }
+  });
+
+  // Функция для возврата назад
+  const handleBack = () => {
+    if (currentView === 'calendar_settings') {
+      setCurrentView('settings2');
+    } else {
+      setCurrentView('main');
+    }
+  };
 
   // Управление историей браузера для поддержки кнопки "Назад"
   useEffect(() => {
@@ -29,19 +47,22 @@ function MainApp() {
         setCurrentView('main');
       }
     };
+    
+    // Обработчик аппаратной кнопки "Назад" на Android
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && currentView !== 'main') {
+        event.preventDefault();
+        handleBack();
+      }
+    };
+    
     window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('popstate', onPopState);
+      window.removeEventListener('keydown', onKeyDown);
+    };
   }, [currentView]);
-
-  // Проверка наличия PIN при запуске
-  useEffect(() => {
-    const pin = localStorage.getItem('app_pin');
-    if (pin) {
-      setIsUnlocked(false);
-    } else {
-      setIsUnlocked(true);
-    }
-  }, []);
 
   // Синхронизация класса 'dark' на body с глобальной темой
   useEffect(() => {
@@ -350,10 +371,6 @@ function MainApp() {
     return baseVariants[animationType] || baseVariants['slide'];
   };
 
-  if (!isUnlocked) {
-    return <LockScreen theme={settings.theme} onUnlock={() => setIsUnlocked(true)} />;
-  }
-
   return (
     <AnimatePresence mode="wait">
       {currentView === 'calendar' && (
@@ -365,8 +382,20 @@ function MainApp() {
           variants={getPageVariants('calendar')}
           transition={{ duration: 0.35, ease: 'easeInOut' }}
           style={{ height: '100%' }}
+          ref={swipeRef as any}
         >
-          <CalendarView onBack={() => setCurrentView('main')} />
+          {/* Мобильная кнопка "Назад" */}
+          {window.innerWidth <= 768 && (
+            <div className="fixed top-4 left-4 z-50">
+              <button
+                onClick={handleBack}
+                className={`p-3 rounded-full shadow-lg ${settings.theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} hover:scale-110 transition-transform`}
+              >
+                <ArrowLeft className="w-6 h-6" />
+              </button>
+            </div>
+          )}
+          <CalendarView onBack={handleBack} onGoToSettings={() => setCurrentView('calendar_settings')} />
         </motion.div>
       )}
       {currentView === 'notes' && (
@@ -378,8 +407,20 @@ function MainApp() {
           variants={getPageVariants('notes')}
           transition={{ duration: 0.35, ease: 'easeInOut' }}
           style={{ height: '100%' }}
+          ref={swipeRef as any}
         >
-          <NotesView onBack={() => setCurrentView('main')} />
+          {/* Мобильная кнопка "Назад" */}
+          {window.innerWidth <= 768 && (
+            <div className="fixed top-4 left-4 z-50">
+              <button
+                onClick={handleBack}
+                className={`p-3 rounded-full shadow-lg ${settings.theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} hover:scale-110 transition-transform`}
+              >
+                <ArrowLeft className="w-6 h-6" />
+              </button>
+            </div>
+          )}
+          <NotesView onBack={handleBack} />
         </motion.div>
       )}
       {currentView === 'lists' && (
@@ -391,8 +432,20 @@ function MainApp() {
           variants={getPageVariants('lists')}
           transition={{ duration: 0.35, ease: 'easeInOut' }}
           style={{ height: '100%' }}
+          ref={swipeRef as any}
         >
-          <ListsView onBack={() => setCurrentView('main')} />
+          {/* Мобильная кнопка "Назад" */}
+          {window.innerWidth <= 768 && (
+            <div className="fixed top-4 left-4 z-50">
+              <button
+                onClick={handleBack}
+                className={`p-3 rounded-full shadow-lg ${settings.theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} hover:scale-110 transition-transform`}
+              >
+                <ArrowLeft className="w-6 h-6" />
+              </button>
+            </div>
+          )}
+          <ListsView onBack={handleBack} />
         </motion.div>
       )}
       {currentView === 'settings2' && (
@@ -404,8 +457,45 @@ function MainApp() {
           variants={getPageVariants('settings')}
           transition={{ duration: 0.35, ease: 'easeInOut' }}
           style={{ height: '100%' }}
+          ref={swipeRef as any}
         >
-          <SettingsView2 onBack={() => setCurrentView('main')} />
+          {/* Мобильная кнопка "Назад" */}
+          {window.innerWidth <= 768 && (
+            <div className="fixed top-4 left-4 z-50">
+              <button
+                onClick={handleBack}
+                className={`p-3 rounded-full shadow-lg ${settings.theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} hover:scale-110 transition-transform`}
+              >
+                <ArrowLeft className="w-6 h-6" />
+              </button>
+            </div>
+          )}
+          <SettingsView2 onBack={handleBack} />
+        </motion.div>
+      )}
+      {currentView === 'calendar_settings' && (
+        <motion.div
+          key="calendar_settings"
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          variants={getPageVariants('settings')}
+          transition={{ duration: 0.35, ease: 'easeInOut' }}
+          style={{ height: '100%' }}
+          ref={swipeRef as any}
+        >
+          {/* Мобильная кнопка "Назад" */}
+          {window.innerWidth <= 768 && (
+            <div className="fixed top-4 left-4 z-50">
+              <button
+                onClick={handleBack}
+                className={`p-3 rounded-full shadow-lg ${settings.theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} hover:scale-110 transition-transform`}
+              >
+                <ArrowLeft className="w-6 h-6" />
+              </button>
+            </div>
+          )}
+          <CalendarSettingsView onBack={() => setCurrentView('settings2')} />
         </motion.div>
       )}
       {currentView === 'main' && (
@@ -417,6 +507,7 @@ function MainApp() {
           variants={getPageVariants('main')}
           transition={{ duration: 0.35, ease: 'easeInOut' }}
           style={{ height: '100%' }}
+          ref={swipeRef as any}
         >
           <div className={`min-h-screen`} style={sectionBackgrounds.main ? (sectionBackgrounds.main.startsWith('data:') ? { backgroundImage: `url(${sectionBackgrounds.main})`, backgroundSize: 'cover', backgroundPosition: 'center' } : { background: sectionBackgrounds.main }) : {}}>
             <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6 max-w-4xl">
@@ -432,41 +523,41 @@ function MainApp() {
                   </div>
                 ))}
               </div>
-              {/* Bottom Navigation */}
-              <div className={`fixed bottom-0 left-0 right-0 border-t shadow-lg ${settings.theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-                <div className="flex justify-around py-2 sm:py-3">
+              {/* Bottom Navigation - Оптимизировано для мобильных */}
+              <div className={`fixed bottom-0 left-0 right-0 border-t shadow-lg backdrop-blur-sm ${settings.theme === 'dark' ? 'bg-gray-800/90 border-gray-700' : 'bg-white/90 border-gray-200'}`}>
+                <div className="flex justify-around py-2 sm:py-3 px-2">
                   <button
                     onClick={() => setCurrentView('calendar')}
-                    className={`flex flex-col items-center p-2 ${getFontSizeClass()} ${settings.theme === 'dark' ? 'text-gray-300' : 'text-gray-600'} btn-rotate`}
+                    className={`flex flex-col items-center p-2 sm:p-3 rounded-lg transition-all duration-200 hover:scale-110 active:scale-95 ${getFontSizeClass()} ${settings.theme === 'dark' ? 'text-gray-300 hover:bg-gray-700/50' : 'text-gray-600 hover:bg-gray-100/50'} btn-rotate`}
                   >
-                    <Calendar className="w-5 h-5 sm:w-6 sm:h-6 mb-1" />
-                    <span className="text-xs">Календарь</span>
+                    <Calendar className="w-6 h-6 sm:w-7 sm:h-7 mb-1" />
+                    <span className="text-xs sm:text-sm font-medium">Календарь</span>
                   </button>
                   <button
                     onClick={() => setCurrentView('notes')}
-                    className={`flex flex-col items-center p-2 ${getFontSizeClass()} ${settings.theme === 'dark' ? 'text-gray-300' : 'text-gray-600'} btn-rotate`}
+                    className={`flex flex-col items-center p-2 sm:p-3 rounded-lg transition-all duration-200 hover:scale-110 active:scale-95 ${getFontSizeClass()} ${settings.theme === 'dark' ? 'text-gray-300 hover:bg-gray-700/50' : 'text-gray-600 hover:bg-gray-100/50'} btn-rotate`}
                   >
-                    <FileText className="w-5 h-5 sm:w-6 sm:h-6 mb-1" />
-                    <span className="text-xs">Заметки</span>
+                    <FileText className="w-6 h-6 sm:w-7 sm:h-7 mb-1" />
+                    <span className="text-xs sm:text-sm font-medium">Заметки</span>
                   </button>
                   <button
                     onClick={() => setCurrentView('lists')}
-                    className={`flex flex-col items-center p-2 ${getFontSizeClass()} ${settings.theme === 'dark' ? 'text-gray-300' : 'text-gray-600'} btn-rotate`}
+                    className={`flex flex-col items-center p-2 sm:p-3 rounded-lg transition-all duration-200 hover:scale-110 active:scale-95 ${getFontSizeClass()} ${settings.theme === 'dark' ? 'text-gray-300 hover:bg-gray-700/50' : 'text-gray-600 hover:bg-gray-100/50'} btn-rotate`}
                   >
-                    <List className="w-5 h-5 sm:w-6 sm:h-6 mb-1" />
-                    <span className="text-xs">Списки</span>
+                    <List className="w-6 h-6 sm:w-7 sm:h-7 mb-1" />
+                    <span className="text-xs sm:text-sm font-medium">Списки</span>
                   </button>
                   <button
                     onClick={() => setCurrentView('settings2')}
-                    className={`flex flex-col items-center p-2 ${getFontSizeClass()} ${settings.theme === 'dark' ? 'text-gray-300' : 'text-gray-600'} btn-rotate`}
+                    className={`flex flex-col items-center p-2 sm:p-3 rounded-lg transition-all duration-200 hover:scale-110 active:scale-95 ${getFontSizeClass()} ${settings.theme === 'dark' ? 'text-gray-300 hover:bg-gray-700/50' : 'text-gray-600 hover:bg-gray-100/50'} btn-rotate`}
                   >
-                    <Settings className="w-5 h-5 sm:w-6 sm:h-6 mb-1" />
-                    <span className="text-xs">Настройки</span>
+                    <Settings className="w-6 h-6 sm:w-7 sm:h-7 mb-1" />
+                    <span className="text-xs sm:text-sm font-medium">Настройки</span>
                   </button>
                 </div>
               </div>
               {/* Bottom padding to account for fixed navigation */}
-              <div className="h-16 sm:h-20"></div>
+              <div className="h-20 sm:h-24"></div>
             </div>
           </div>
         </motion.div>

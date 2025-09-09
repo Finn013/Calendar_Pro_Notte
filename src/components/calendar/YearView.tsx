@@ -1,282 +1,142 @@
-import { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import CalendarSettingsView from './CalendarSettingsView';
+import { useSwipeGestures } from '../../hooks/useSwipeGestures';
 
-export default function YearView() {
-  const { state, dispatch } = useApp();
-  const { selectedDate, days, settings } = state;
-  const calendarSettings = settings.calendarSettings || { todayColor: '#EF4444', dayShape: 'rounded', animationType: 'slide' };
-  const calendarBackgrounds = state.calendarBackgrounds || { year: '', month: '', week: '' };
+// --- КОМПОНЕНТ МИНИ-КАЛЕНДАРЯ ДЛЯ МЕСЯЦА ---
+const MiniMonth = ({ year, month, monthName, totalTime, onMonthClick, calendarSettings, settings }: any) => {
+  const firstDayOfMonth = new Date(year, month, 1).getDay();
+  const correctedFirstDay = (firstDayOfMonth === 0) ? 6 : firstDayOfMonth - 1;
 
-  // --- Новое: получаем настройку отображения иконок повторяющихся задач ---
-  const [repeatingShowIcons, setRepeatingShowIcons] = useState<{ year: boolean }>({ year: true });
-  useEffect(() => {
-    const saved = localStorage.getItem('calendar-repeating-showIcons');
-    setRepeatingShowIcons(saved ? JSON.parse(saved) : { year: true });
-  }, [selectedDate]);
-  // --- Получаем повторяющиеся задачи ---
-  const [repeatingTasks, setRepeatingTasks] = useState<any[]>([]);
-  useEffect(() => {
-    const saved = localStorage.getItem('calendar-repeating-tasks');
-    setRepeatingTasks(saved ? JSON.parse(saved) : []);
-  }, [selectedDate]);
-  // --- Получаем настройки графика ---
-  const [schedule] = useState(() => {
-    const saved = localStorage.getItem('calendar-schedule');
-    return saved ? JSON.parse(saved) : {
-      from: new Date().toISOString().slice(0, 10),
-      to: new Date(new Date().getFullYear(), 11, 31).toISOString().slice(0, 10),
-      workDays: 5,
-      restDays: 2,
-      workIcon: '💼',
-      restIcon: '🏖️',
-      showIcons: { year: true, month: true, week: true }
-    };
-  });
-  // --- Функция для определения, рабочий или выходной день ---
-  function getScheduleIcon(date: Date) {
-    if (!schedule.showIcons?.year) return null;
-    const from = new Date(schedule.from);
-    const to = new Date(schedule.to);
-    if (date < from || date > to) return null;
-    const dayIndex = Math.floor((date.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
-    const cycle = schedule.workDays + schedule.restDays;
-    if (cycle === 0) return null;
-    const pos = dayIndex % cycle;
-    if (pos < schedule.workDays) return schedule.workIcon;
-    return schedule.restIcon;
-  }
-
-  const currentYear = selectedDate.getFullYear();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
   const today = new Date();
 
-  const formatDateKey = (date: Date) => {
-    return new Intl.DateTimeFormat('ru-RU', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    }).format(date).replace(/\./g, '-');
-  };
+  // Получаем настройки выделения дня
+  const todayColor = calendarSettings?.todayColor || '#EF4444';
+  const dayShape = calendarSettings?.dayShape || 'rounded';
 
-  const isToday = (date: Date) => {
-    return date.toDateString() === today.toDateString();
-  };
+  // Функция для получения стилей выделения текущего дня
+  const getTodayStyles = () => {
+    const baseStyles = {
+      backgroundColor: todayColor,
+      color: 'white'
+    };
 
-  const hasTasks = (date: Date) => {
-    const dateKey = formatDateKey(date);
-    return days[dateKey] && days[dateKey].tasks.length > 0;
-  };
-
-  const getMonthTime = (monthIndex: number) => {
-    let totalMinutes = 0;
-    const daysInMonth = new Date(currentYear, monthIndex + 1, 0).getDate();
-    
-    for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(currentYear, monthIndex, day);
-      const dateKey = formatDateKey(date);
-      const dayData = days[dateKey];
-      if (dayData && dayData.timeEntries) {
-        totalMinutes += dayData.timeEntries.reduce((sum, entry) => 
-          sum + (entry.hours * 60) + entry.minutes, 0
-        );
-      }
+    switch (dayShape) {
+      case 'square':
+        return { ...baseStyles, borderRadius: '0' };
+      case 'circle':
+        return { ...baseStyles, borderRadius: '50%' };
+      case 'octagon':
+        return { ...baseStyles, borderRadius: '0.375rem', clipPath: 'polygon(25% 0%, 75% 0%, 100% 25%, 100% 75%, 75% 100%, 25% 100%, 0% 75%, 0% 25%)' };
+      case 'rounded':
+      default:
+        return { ...baseStyles, borderRadius: '50%' };
     }
-    
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    return `${hours}:${minutes.toString().padStart(2, '0')}`;
   };
 
-  const handleDateClick = (date: Date) => {
-    dispatch({ type: 'SET_SELECTED_DATE', payload: date });
-    dispatch({ type: 'SET_CURRENT_VIEW', payload: 'week' });
-  };
+  const dayCells = Array.from({ length: correctedFirstDay }, (_, i) => (
+    <div key={`empty-${i}`} className="w-4 h-4"></div>
+  ));
 
-  const handleMonthClick = (monthIndex: number) => {
-    const newDate = new Date(currentYear, monthIndex, 1);
-    dispatch({ type: 'SET_SELECTED_DATE', payload: newDate });
+  for (let day = 1; day <= daysInMonth; day++) {
+    const isToday = today.getDate() === day && today.getMonth() === month && today.getFullYear() === year;
+    dayCells.push(
+      <div 
+        key={day} 
+        className={`w-4 h-4 flex items-center justify-center text-xs ${isToday ? '' : (settings.theme === 'dark' ? 'text-gray-200' : 'text-gray-900')}`}
+        style={isToday ? getTodayStyles() : {}}
+      >
+        {day}
+      </div>
+    );
+  }
+
+  return (
+    <div 
+      onClick={onMonthClick}
+      className="p-3 text-center rounded-lg cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-lg bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-gray-700"
+    >
+      <p className={`font-semibold capitalize ${settings.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{monthName}</p>
+      {totalTime && (
+        <p className="text-xs font-bold text-green-600 dark:text-green-400 mt-1">
+          {totalTime}
+        </p>
+      )}
+      <div className="grid grid-cols-7 gap-1 mt-3">
+        {['П', 'В', 'С', 'Ч', 'П', 'С', 'В'].map((d, i) => <div key={i} className={`text-xs font-bold ${settings.theme === 'dark' ? 'text-gray-300' : 'text-gray-400'}`}>{d}</div>)}
+        {dayCells}
+      </div>
+    </div>
+  );
+};
+
+// --- ОСНОВНОЙ КОМПОНЕНТ ВИДА "ГОД" ---
+export default function YearView({ settings: propSettings }: { settings?: any }) {
+  const { state, dispatch } = useApp();
+  const { selectedDate, days, calendarBackgrounds, settings: contextSettings } = state;
+  const settings = propSettings || contextSettings;
+  const year = selectedDate.getFullYear();
+  
+  // Получаем настройки календаря для применения стилей выделения
+  const calendarSettings = settings.calendarSettings || { todayColor: '#EF4444', dayShape: 'rounded' };
+
+  const handleMonthClick = (month: number) => {
+    dispatch({ type: 'SET_SELECTED_DATE', payload: new Date(year, month, 1) });
     dispatch({ type: 'SET_CURRENT_VIEW', payload: 'month' });
   };
 
-  const navigateYear = (direction: 'prev' | 'next') => {
-    const newDate = new Date(selectedDate);
-    newDate.setFullYear(newDate.getFullYear() + (direction === 'next' ? 1 : -1));
-    dispatch({ type: 'SET_SELECTED_DATE', payload: newDate });
-  };
+  // Поддержка свайпов для навигации по годам
+  const swipeRef = useSwipeGestures({
+    onSwipeLeft: () => dispatch({ type: 'SET_SELECTED_DATE', payload: new Date(year + 1, 0, 1) }),
+    onSwipeRight: () => dispatch({ type: 'SET_SELECTED_DATE', payload: new Date(year - 1, 0, 1) })
+  });
 
-  const getFontSizeClass = () => {
-    switch (settings.fontSize) {
-      case 'small': return 'text-xs';
-      case 'large': return 'text-base';
-      default: return 'text-sm';
+  const monthlyTimes = useMemo(() => {
+    const times: { [key: number]: string } = {};
+    for (let month = 0; month < 12; month++) {
+      let totalMinutes = 0;
+      for (const dateKey in days) {
+        const [dYear, dMonth] = dateKey.split('-').map(Number);
+        if (dYear === year && dMonth === month + 1) {
+          totalMinutes += days[dateKey].timeEntries?.reduce((acc, curr) => acc + (curr.hours * 60) + curr.minutes, 0) || 0;
+        }
+      }
+      if (totalMinutes > 0) {
+        times[month] = `${Math.floor(totalMinutes / 60)}ч ${totalMinutes % 60}м`;
+      }
     }
-  };
+    return times;
+  }, [days, year]);
 
-  // Получаем фон и выделение из localStorage
-  const [showCalendarSettings, setShowCalendarSettings] = useState(false);
-
-  const renderMonth = (monthIndex: number) => {
-    const monthDate = new Date(currentYear, monthIndex, 1);
-    const monthName = new Intl.DateTimeFormat('ru-RU', { month: 'long' }).format(monthDate);
-    const daysInMonth = new Date(currentYear, monthIndex + 1, 0).getDate();
-    const firstDayWeekday = monthDate.getDay();
-    const startDate = firstDayWeekday === 0 ? 6 : firstDayWeekday - 1;
-    const monthTime = getMonthTime(monthIndex);
-
-    return (
-      <div
-        key={monthIndex}
-        className={`p-3 rounded-lg border-2 transition-all duration-200 ${
-          settings.theme === 'dark'
-            ? 'border-gray-600 bg-gray-700 hover:bg-gray-650'
-            : 'border-gray-200 bg-white hover:bg-gray-50'
-        }`}
-      >
-        <div className="flex items-center justify-between mb-2">
-          <button
-            onClick={() => handleMonthClick(monthIndex)}
-            className={`font-bold capitalize ${getFontSizeClass()} ${
-              settings.theme === 'dark' ? 'text-gray-200 hover:text-white' : 'text-gray-700 hover:text-gray-900'
-            } transition-colors`}
-          >
-            {monthName.toUpperCase()}
-          </button>
-          <span className={`text-xs font-medium ${
-            settings.theme === 'dark' ? 'text-green-400' : 'text-green-600'
-          }`}>
-            {monthTime}
-          </span>
-        </div>
-
-        {/* Weekday headers */}
-        <div className="grid grid-cols-7 gap-1 mb-1">
-          {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((day) => (
-            <div
-              key={day}
-              className={`text-center py-1 text-xs font-medium ${
-                settings.theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-              } capitalize`}
-            >
-              {day}
-            </div>
-          ))}
-        </div>
-
-        {/* Calendar grid */}
-        <div className="grid grid-cols-7 gap-1">
-          {/* Empty cells for days before month starts */}
-          {Array.from({ length: startDate }, (_, i) => (
-            <div key={`empty-${i}`} className="aspect-square" />
-          ))}
-
-          {/* Days of the month */}
-          {Array.from({ length: daysInMonth }, (_, i) => {
-            const day = i + 1;
-            const date = new Date(currentYear, monthIndex, day);
-            const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-            const todayCheck = isToday(date);
-            const hasTasksCheck = hasTasks(date);
-            const isSelected =
-              selectedDate.getDate() === day &&
-              selectedDate.getMonth() === monthIndex &&
-              selectedDate.getFullYear() === currentYear;
-
-            // Определяем форму выделения для сегодняшнего дня
-            let shapeClass = 'rounded';
-            switch (calendarSettings.dayShape) {
-              case 'square': shapeClass = 'rounded-none'; break;
-              case 'circle': shapeClass = 'rounded-full'; break;
-              case 'octagon': shapeClass = 'octagon-btn'; break;
-              default: shapeClass = 'rounded';
-            }
-
-            return (
-              <button
-                key={day}
-                onClick={() => handleDateClick(date)}
-                className={
-                  `aspect-square flex items-center justify-center transition-all duration-200 text-xs font-medium relative ` +
-                  (todayCheck
-                    ? `${shapeClass} text-white shadow-lg scale-110 z-10`
-                    : isSelected
-                      ? 'rounded border-2 border-blue-400 z-10'
-                      : isWeekend
-                        ? settings.theme === 'dark'
-                          ? 'text-red-400 hover:bg-gray-600'
-                          : 'text-red-500 hover:bg-red-50'
-                        : settings.theme === 'dark'
-                          ? 'text-gray-200 hover:bg-gray-600'
-                          : 'text-gray-700 hover:bg-gray-100'
-                  ) +
-                  (hasTasksCheck ? ' font-bold' : '')
-                }
-                style={todayCheck
-                  ? { backgroundColor: calendarSettings.todayColor }
-                  : {}}
-              >
-                {day}
-                {/* Показываем иконку графика, если включено в настройках графика */}
-                {schedule.showIcons?.year && getScheduleIcon(date) && (
-                  <span title="График" style={{ fontSize: '1.1em', marginLeft: 2 }}>{getScheduleIcon(date)}</span>
-                )}
-                {/* Показываем иконки повторяющихся задач всех типов, если включено в настройках */}
-                {repeatingShowIcons.year && repeatingTasks.filter(t => {
-                  if (t.type === 'yearly') return t.day === day && t.month === (monthIndex + 1);
-                  if (t.type === 'monthly') return t.day === day;
-                  if (t.type === 'weekly') return t.weekday === date.getDay();
-                  return false;
-                }).map((t, idx) => (
-                  <span key={idx} title={t.text} style={{ color: t.color, fontSize: '1.1em', marginLeft: 2 }}>{t.icon}</span>
-                ))}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
+  const monthNames = [
+    'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+    'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
+  ];
 
   return (
-    <div className="p-4 sm:p-6" style={(calendarBackgrounds.year || '').startsWith('data:') ? { backgroundImage: `url(${calendarBackgrounds.year})`, backgroundSize: 'cover', backgroundPosition: 'center' } : calendarBackgrounds.year ? { background: calendarBackgrounds.year } : {}}>
-      <div className="flex items-center justify-between mb-6">
-        <button
-          onClick={() => navigateYear('prev')}
-          className={`p-2 rounded-lg transition-colors ${
-            settings.theme === 'dark'
-              ? 'bg-gray-700 hover:bg-gray-600 text-gray-200'
-              : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-          }`}
-        >
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-
-        <div className={`text-2xl font-bold ${
-          settings.theme === 'dark' ? 'text-white' : 'text-gray-800'
-        }`}>
-          {currentYear}
-        </div>
-
-        <button
-          onClick={() => navigateYear('next')}
-          className={`p-2 rounded-lg transition-colors ${
-            settings.theme === 'dark'
-              ? 'bg-gray-700 hover:bg-gray-600 text-gray-200'
-              : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-          }`}
-        >
-          <ChevronRight className="w-5 h-5" />
-        </button>
-      </div>
-
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-bold">{currentYear}</h2>
-        {/* Кнопка настроек календаря временно удалена */}
-      </div>
-      {showCalendarSettings && <CalendarSettingsView onClose={() => setShowCalendarSettings(false)} />}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {Array.from({ length: 12 }, (_, i) => renderMonth(i))}
+    <div 
+      className="p-4"
+      ref={swipeRef as any}
+      style={calendarBackgrounds.year ? (
+        calendarBackgrounds.year.startsWith('data:') 
+          ? { backgroundImage: `url(${calendarBackgrounds.year})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+          : { background: calendarBackgrounds.year }
+      ) : {}}
+    >
+      <h2 className={`text-2xl font-bold text-center mb-6 ${settings.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{year}</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {monthNames.map((monthName, index) => (
+          <MiniMonth 
+            key={index}
+            year={year}
+            month={index}
+            monthName={monthName}
+            totalTime={monthlyTimes[index]}
+            onMonthClick={() => handleMonthClick(index)}
+            calendarSettings={calendarSettings}
+            settings={settings}
+          />
+        ))}
       </div>
     </div>
   );

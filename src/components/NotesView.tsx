@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Plus, Search, Menu, Copy, QrCode, Palette, Trash2, Tag, Calendar, Clock } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
@@ -24,9 +24,29 @@ export default function NotesView({ onBack }: NotesViewProps) {
 
   // Получаем фон заметок из localStorage
   const [sectionBackgrounds, setSectionBackgrounds] = useState<{ notes: string }>({ notes: '' });
+  const menuRef = useRef<HTMLDivElement>(null);
+  const colorPickerRef = useRef<HTMLDivElement>(null);
+  
   useEffect(() => {
     const bg = localStorage.getItem('section-backgrounds');
     setSectionBackgrounds(bg ? JSON.parse(bg) : { notes: '' });
+  }, []);
+
+  // Закрытие меню при клике вне его
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowNoteMenu(null);
+      }
+      if (colorPickerRef.current && !colorPickerRef.current.contains(event.target as Node)) {
+        setShowColorPicker(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
   const colors = [
@@ -331,9 +351,9 @@ export default function NotesView({ onBack }: NotesViewProps) {
             {filteredAndSortedNotes.map((note) => (
               <div
                 key={note.id}
-                className={`rounded-xl shadow-lg overflow-hidden transition-all duration-200 hover:shadow-xl hover:scale-105 ${
+                className={`relative rounded-xl shadow-lg overflow-visible transition-all duration-200 hover:shadow-xl hover:scale-105 ${(
                   settings.theme === 'dark' ? 'bg-gray-800' : 'bg-white'
-                }`}
+                )}`}
                 style={{ borderLeft: `4px solid ${note.color}` }}
               >
                 <div className="p-4">
@@ -356,9 +376,13 @@ export default function NotesView({ onBack }: NotesViewProps) {
                       </button>
 
                       {showNoteMenu === note.id && (
-                        <div className={`absolute right-0 top-full mt-2 w-48 rounded-lg shadow-lg z-20 ${
-                          settings.theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'
-                        } border`}>
+                        <div 
+                          ref={menuRef}
+                          className={`absolute right-0 top-full mt-2 w-48 rounded-lg shadow-xl z-50 border ${(
+                            settings.theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'
+                          )}`} 
+                          style={{ position: 'absolute' }}
+                        >
                           <button
                             onClick={() => handleNoteAction(note.id, 'color')}
                             className={`w-full px-4 py-2 text-left hover:bg-gray-100 ${settings.theme === 'dark' ? 'hover:bg-gray-600 text-gray-200' : ''} flex items-center gap-2 btn-rotate`}
@@ -398,9 +422,13 @@ export default function NotesView({ onBack }: NotesViewProps) {
                       )}
 
                       {showColorPicker === note.id && (
-                        <div className={`absolute right-0 top-full mt-2 w-48 rounded-lg shadow-lg z-30 p-4 ${
-                          settings.theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'
-                        } border`}>
+                        <div 
+                          ref={colorPickerRef}
+                          className={`absolute right-0 top-full mt-2 w-48 rounded-lg shadow-xl z-50 p-4 border ${(
+                            settings.theme === 'dark' ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'
+                          )}`}
+                          style={{ position: 'absolute' }}
+                        >
                           <div className="grid grid-cols-4 gap-2">
                             {colors.map((color) => (
                               <button

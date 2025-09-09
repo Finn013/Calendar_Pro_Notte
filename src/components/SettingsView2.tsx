@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { FileText, Database, Share, Upload, Settings as SettingsIcon, List as ListIcon, FileText as FileTextIcon, Calendar as CalendarIcon } from 'lucide-react';
+import { FileText, Database, Share, Upload, Settings as SettingsIcon, List as ListIcon, FileText as FileTextIcon, Calendar as CalendarIcon, GripVertical, Move } from 'lucide-react';
 
 const BUTTON_COLORS = [
   '#3B82F6', '#EF4444', '#10B981', '#F59E42', '#A78BFA', '#F472B6', '#FBBF24', '#374151', '#E5E7EB', '#111827', '#22D3EE', '#F87171'
@@ -12,8 +12,6 @@ const SECTION_LABELS: Record<string, string> = {
   notes: 'Заметки',
   lists: 'Списки',
 };
-
-const PIN_KEY = 'app_pin';
 
 export default function SettingsView2({ onBack }: { onBack: () => void }) {
   const { state, dispatch } = useApp();
@@ -29,7 +27,7 @@ export default function SettingsView2({ onBack }: { onBack: () => void }) {
   const [pendingGradient, setPendingGradient] = useState<{ [key in 'main' | 'lists' | 'notes']?: { color1: string; color2: string } }>({});
   const defaultGradient = { color1: '#f472b6', color2: '#60a5fa' };
   const colorPalette = [
-    '#f472b6', '#60a5fa', '#fbbf24', '#34d399', '#a78bfa', '#f87171', '#fbbf24', '#6b7280', '#f3f4f6', '#1f2937', '#fff', '#000'
+    '#f472b6', '#60a5fa', '#fbbf24', '#34d399', '#a78bfa', '#f87171', '#84cc16', '#6b7280', '#f3f4f6', '#1f2937', '#fff', '#000'
   ];
   const handlePendingBg = (section: 'main' | 'lists' | 'notes', value: string) => {
     setPendingBg(bg => ({ ...bg, [section]: value }));
@@ -69,12 +67,17 @@ export default function SettingsView2({ onBack }: { onBack: () => void }) {
     dispatch({ type: 'UPDATE_SETTINGS', payload: { buttonColor } });
   };
 
-  // Drag&Drop для порядка разделов с ghost и touch
+  // Enhanced Drag&Drop для порядка разделов с улучшенным touch интерфейсом
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [touchStartPos, setTouchStartPos] = useState<{ x: number; y: number } | null>(null);
+  const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const dragGhostRef = useRef<HTMLLIElement | null>(null);
   const touchStartY = useRef<number | null>(null);
+  const containerRef = useRef<HTMLUListElement>(null);
   const [order, setOrder] = useState(settings.mainScreenOrder);
+  const [longPressTimer, setLongPressTimer] = useState<number | null>(null);
 
   // Синхронизируем order с глобальным состоянием
   useEffect(() => { setOrder(settings.mainScreenOrder); }, [settings.mainScreenOrder]);
@@ -82,47 +85,136 @@ export default function SettingsView2({ onBack }: { onBack: () => void }) {
   const handleDragStart = (idx: number, e?: React.DragEvent | React.TouchEvent) => {
     setDraggedIdx(idx);
     setDragOverIdx(idx);
+    setIsDragging(true);
+    
     if (e && 'dataTransfer' in e) {
       e.dataTransfer.effectAllowed = 'move';
-      // Для Firefox
       e.dataTransfer.setData('text/plain', '');
     }
+    
     if (e && 'touches' in e && e.touches.length > 0) {
-      touchStartY.current = e.touches[0].clientY;
+      const touch = e.touches[0];
+      touchStartY.current = touch.clientY;
+      setTouchStartPos({ x: touch.clientX, y: touch.clientY });
+      // Добавляем вибрацию для тактильной обратной связи (если поддерживается)
+      if ('vibrate' in navigator) {
+        navigator.vibrate(50);
+      }
     }
   };
+  
   const handleDragOver = (idx: number, e?: React.DragEvent | React.TouchEvent) => {
     if (e && 'preventDefault' in e) e.preventDefault();
-    setDragOverIdx(idx);
+    if (isDragging) {
+      setDragOverIdx(idx);
+    }
   };
+  
   const handleDrop = (idx: number) => {
-    if (draggedIdx === null || draggedIdx === idx) { setDraggedIdx(null); setDragOverIdx(null); return; }
+    if (draggedIdx === null || draggedIdx === idx) { 
+      resetDragState();
+      return; 
+    }
+    
     const newOrder = [...order];
     const [removed] = newOrder.splice(draggedIdx, 1);
     newOrder.splice(idx, 0, removed);
     setOrder(newOrder);
     dispatch({ type: 'UPDATE_SETTINGS', payload: { mainScreenOrder: newOrder } });
+    
+    // Вибрация при успешном перемещении
+    if ('vibrate' in navigator) {
+      navigator.vibrate([30, 10, 30]);
+    }
+    
+    resetDragState();
+  };
+  
+  const resetDragState = () => {
     setDraggedIdx(null);
     setDragOverIdx(null);
+    setIsDragging(false);
+    setTouchStartPos(null);
+    setDragOffset({ x: 0, y: 0 });
+    touchStartY.current = null;
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    }
   };
-  const handleDragEnd = () => { setDraggedIdx(null); setDragOverIdx(null); };
+  
+  const handleDragEnd = resetDragState;
 
-  // Touch events for mobile
+  // Enhanced touch events for mobile with improved gesture recognition
+  const handleTouchStart = (idx: number, e: React.TouchEvent) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    setTouchStartPos({ x: touch.clientX, y: touch.clientY });
+    touchStartY.current = touch.clientY;
+    
+    // Долгое нажатие для начала перетаскивания
+    const timer = setTimeout(() => {
+      handleDragStart(idx, e);
+      setLongPressTimer(null);
+    }, 200); // 200ms для активации перетаскивания
+    
+    setLongPressTimer(timer);
+  };
+  
   const handleTouchMove = (idx: number, e: React.TouchEvent) => {
-    if (touchStartY.current === null) return;
-    const y = e.touches[0].clientY;
-    const delta = y - touchStartY.current;
-    if (Math.abs(delta) > 30) {
-      let targetIdx = idx;
-      if (delta > 0 && idx < order.length - 1) targetIdx = idx + 1;
-      if (delta < 0 && idx > 0) targetIdx = idx - 1;
-      if (targetIdx !== idx) {
-        handleDrop(targetIdx);
-        touchStartY.current = y;
+    e.preventDefault();
+    
+    if (!touchStartPos) return;
+    
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - touchStartPos.x;
+    const deltaY = touch.clientY - touchStartPos.y;
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    
+    // Если движение началось, отменяем долгое нажатие
+    if (distance > 10 && longPressTimer) {
+      clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    }
+    
+    // Если уже перетаскиваем
+    if (isDragging && draggedIdx === idx) {
+      setDragOffset({ x: deltaX, y: deltaY });
+      
+      // Определяем над каким элементом мы находимся
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const relativeY = touch.clientY - rect.top;
+        const itemHeight = 56; // примерная высота элемента с отступами
+        const targetIdx = Math.min(Math.max(0, Math.floor(relativeY / itemHeight)), order.length - 1);
+        
+        if (targetIdx !== dragOverIdx && targetIdx !== draggedIdx) {
+          setDragOverIdx(targetIdx);
+          // Легкая вибрация при переходе между элементами
+          if ('vibrate' in navigator) {
+            navigator.vibrate(10);
+          }
+        }
       }
     }
   };
-  const handleTouchEnd = () => { setDraggedIdx(null); setDragOverIdx(null); touchStartY.current = null; };
+  
+  const handleTouchEnd = (idx: number, e: React.TouchEvent) => {
+    e.preventDefault();
+    
+    // Отменяем таймер долгого нажатия
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    }
+    
+    // Если было перетаскивание, завершаем его
+    if (isDragging && draggedIdx === idx && dragOverIdx !== null && dragOverIdx !== draggedIdx) {
+      handleDrop(dragOverIdx);
+    } else {
+      resetDragState();
+    }
+  };
 
   // --- Реальная статистика ---
   const getDataStats = () => {
@@ -208,7 +300,7 @@ export default function SettingsView2({ onBack }: { onBack: () => void }) {
 
         {/* Тема */}
         <div>
-          <h2 className="text-lg font-semibold mb-2">Тема</h2>
+          <h2 className={`text-lg font-semibold mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Тема</h2>
           <div className="flex gap-4">
             <button
               onClick={() => handleThemeChange('light')}
@@ -227,7 +319,7 @@ export default function SettingsView2({ onBack }: { onBack: () => void }) {
 
         {/* Размер шрифта */}
         <div>
-          <h2 className="text-lg font-semibold mb-2">Размер шрифта</h2>
+          <h2 className={`text-lg font-semibold mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Размер шрифта</h2>
           <div className="flex gap-4 items-end">
             <button
               onClick={() => handleFontSizeChange('small')}
@@ -255,7 +347,7 @@ export default function SettingsView2({ onBack }: { onBack: () => void }) {
 
         {/* Стиль кнопок */}
         <div>
-          <h2 className="text-lg font-semibold mb-2">Стиль кнопок</h2>
+          <h2 className={`text-lg font-semibold mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Стиль кнопок</h2>
           <div className="flex gap-4 items-center">
             <button
               onClick={() => handleButtonStyleChange('rounded')}
@@ -286,7 +378,7 @@ export default function SettingsView2({ onBack }: { onBack: () => void }) {
 
         {/* Цвет кнопок */}
         <div>
-          <h2 className="text-lg font-semibold mb-2">Цвет кнопок</h2>
+          <h2 className={`text-lg font-semibold mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Цвет кнопок</h2>
           <div className="flex flex-wrap gap-2">
             {BUTTON_COLORS.map((color) => (
               <button
@@ -299,39 +391,96 @@ export default function SettingsView2({ onBack }: { onBack: () => void }) {
           </div>
         </div>
 
-        {/* Порядок разделов (drag&drop с ghost и touch) */}
+        {/* Порядок разделов (enhanced drag&drop с улучшенным touch интерфейсом) */}
         <div>
-          <h2 className="text-lg font-semibold mb-2">Порядок разделов</h2>
-          <ul className="space-y-2">
-            {order.map((section, idx) => (
-              <li
-                key={section}
-                ref={draggedIdx === idx ? dragGhostRef : null}
-                className={`flex items-center gap-2 p-2 rounded border bg-white shadow cursor-move transition-all duration-150
-                ${draggedIdx === idx ? 'opacity-50' : ''}
-                ${dragOverIdx === idx && draggedIdx !== null && draggedIdx !== idx ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}
-                draggable
-                onDragStart={e => handleDragStart(idx, e)}
-                onDragOver={e => handleDragOver(idx, e)}
-                onDrop={() => handleDrop(idx)}
-                onDragEnd={handleDragEnd}
-                // Touch events
-                onTouchStart={e => handleDragStart(idx, e)}
-                onTouchMove={e => handleTouchMove(idx, e)}
-                onTouchEnd={handleTouchEnd}
-              >
-                {section === 'calendar' && <CalendarIcon className="w-5 h-5 text-blue-500" />}
-                {section === 'notes' && <FileTextIcon className="w-5 h-5 text-pink-500" />}
-                {section === 'lists' && <ListIcon className="w-5 h-5 text-green-500" />}
-                {section === 'date' && <SettingsIcon className="w-5 h-5 text-gray-500" />}
-                <span className="flex-1">{SECTION_LABELS[section] || section}</span>
-              </li>
-            ))}
-            {/* Ghost placeholder */}
-            {draggedIdx !== null && dragOverIdx !== null && draggedIdx !== dragOverIdx && (
-              <li className="h-8 border-2 border-dashed border-blue-400 rounded bg-blue-50 animate-pulse"></li>
-            )}
+          <h2 className={`text-lg font-semibold mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Порядок разделов</h2>
+          <p className={`text-sm mb-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+            💡 Нажмите и удерживайте элемент, затем перетащите для изменения порядка
+          </p>
+          <ul ref={containerRef} className="space-y-3">
+            {order.map((section, idx) => {
+              const isBeingDragged = draggedIdx === idx;
+              const isDropTarget = dragOverIdx === idx && draggedIdx !== null && draggedIdx !== idx;
+              const showInsertionPoint = isDropTarget;
+              
+              return (
+                <React.Fragment key={section}>
+                  {/* Линия вставки */}
+                  {showInsertionPoint && (
+                    <li className="h-1 bg-blue-500 rounded-full mx-2 animate-pulse shadow-lg"></li>
+                  )}
+                  
+                  <li
+                    ref={isBeingDragged ? dragGhostRef : null}
+                    className={`relative flex items-center gap-3 p-4 rounded-xl border-2 bg-white shadow-md transition-all duration-200 select-none
+                    ${isBeingDragged ? 'opacity-60 scale-105 shadow-2xl z-10 border-blue-500' : 'hover:shadow-lg'}
+                    ${isDropTarget ? 'border-blue-400 bg-blue-50 scale-102' : 'border-gray-200 hover:border-gray-300'}
+                    ${theme === 'dark' ? 'bg-gray-800 border-gray-600 hover:border-gray-500' : ''}`}
+                    style={isBeingDragged ? {
+                      transform: `translate(${dragOffset.x}px, ${dragOffset.y}px)`,
+                      zIndex: 1000
+                    } : {}}
+                    draggable
+                    onDragStart={e => handleDragStart(idx, e)}
+                    onDragOver={e => handleDragOver(idx, e)}
+                    onDrop={() => handleDrop(idx)}
+                    onDragEnd={handleDragEnd}
+                    // Enhanced touch events
+                    onTouchStart={e => handleTouchStart(idx, e)}
+                    onTouchMove={e => handleTouchMove(idx, e)}
+                    onTouchEnd={e => handleTouchEnd(idx, e)}
+                  >
+                    {/* Drag handle - более заметная ручка для перетаскивания */}
+                    <div className={`flex flex-col items-center justify-center p-2 rounded-lg cursor-grab active:cursor-grabbing
+                      ${theme === 'dark' ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'}
+                      ${isBeingDragged ? 'bg-blue-200 text-blue-600' : 'hover:bg-gray-200'}`}>
+                      <GripVertical className="w-5 h-5" />
+                      <div className={`w-1 h-1 rounded-full mt-1 ${isBeingDragged ? 'bg-blue-500' : 'bg-gray-400'}`}></div>
+                    </div>
+                    
+                    {/* Иконка раздела */}
+                    <div className={`p-3 rounded-xl ${isBeingDragged ? 'scale-110' : ''} transition-transform`}>
+                      {section === 'calendar' && <CalendarIcon className="w-6 h-6 text-blue-500" />}
+                      {section === 'notes' && <FileTextIcon className="w-6 h-6 text-pink-500" />}
+                      {section === 'lists' && <ListIcon className="w-6 h-6 text-green-500" />}
+                      {section === 'date' && <SettingsIcon className="w-6 h-6 text-gray-500" />}
+                    </div>
+                    
+                    {/* Название раздела */}
+                    <span className={`flex-1 font-medium text-lg ${theme === 'dark' ? 'text-gray-200' : 'text-gray-800'}
+                      ${isBeingDragged ? 'text-blue-600' : ''}`}>
+                      {SECTION_LABELS[section] || section}
+                    </span>
+                    
+                    {/* Индикатор позиции */}
+                    <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold
+                      ${theme === 'dark' ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-600'}
+                      ${isBeingDragged ? 'bg-blue-500 text-white' : ''}`}>
+                      {idx + 1}
+                    </div>
+                    
+                    {/* Эффект свечения при перетаскивании */}
+                    {isBeingDragged && (
+                      <div className="absolute inset-0 rounded-xl bg-blue-400 opacity-20 animate-pulse"></div>
+                    )}
+                  </li>
+                </React.Fragment>
+              );
+            })}
           </ul>
+          
+          {/* Инструкции для пользователей */}
+          <div className={`mt-4 p-3 rounded-lg ${theme === 'dark' ? 'bg-gray-800 text-gray-400' : 'bg-gray-50 text-gray-600'} text-sm`}>
+            <div className="flex items-center gap-2 mb-2">
+              <Move className="w-4 h-4" />
+              <span className="font-medium">Как изменить порядок:</span>
+            </div>
+            <ul className="space-y-1 ml-6 list-disc">
+              <li>На компьютере: перетащите элемент</li>
+              <li>На телефоне: долгое нажатие + перетаскивание</li>
+              <li>Синяя линия показывает место вставки</li>
+            </ul>
+          </div>
         </div>
 
         {/* Фон разделов */}
@@ -531,101 +680,8 @@ export default function SettingsView2({ onBack }: { onBack: () => void }) {
             </div>
           </div>
         </div>
-
-        <div className={`rounded-xl shadow-lg p-4 mb-4 ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
-          <div className="text-lg font-bold mb-2">Блокировка</div>
-          <LockSettings />
-        </div>
       </div>
     </div>
   );
 }
 
-function isBiometryAvailable() {
-  return !!(window.PublicKeyCredential && typeof window.PublicKeyCredential === 'function');
-}
-
-function LockSettings() {
-  const [hasPin, setHasPin] = useState(false);
-  const [message, setMessage] = useState('');
-  const [biometryEnabled, setBiometryEnabled] = useState(false);
-  const [biometryAvailable, setBiometryAvailable] = useState(false);
-
-  useEffect(() => {
-    setHasPin(!!localStorage.getItem(PIN_KEY));
-    setBiometryAvailable(isBiometryAvailable());
-    setBiometryEnabled(localStorage.getItem('biometry_enabled') === '1');
-  }, []);
-
-  const handleSet = () => {
-    const pin = prompt('Придумайте PIN (минимум 4 цифры):');
-    if (pin && pin.length >= 4 && /^\d+$/.test(pin)) {
-      localStorage.setItem(PIN_KEY, pin);
-      setHasPin(true);
-      setMessage('PIN установлен!');
-    } else if (pin) {
-      setMessage('PIN должен содержать минимум 4 цифры.');
-    }
-  };
-
-  const handleChange = () => {
-    const oldPin = prompt('Введите текущий PIN:');
-    if (oldPin !== localStorage.getItem(PIN_KEY)) {
-      setMessage('Неверный текущий PIN.');
-      return;
-    }
-    const newPin = prompt('Введите новый PIN (минимум 4 цифры):');
-    if (newPin && newPin.length >= 4 && /^\d+$/.test(newPin)) {
-      localStorage.setItem(PIN_KEY, newPin);
-      setMessage('PIN изменён!');
-    } else if (newPin) {
-      setMessage('PIN должен содержать минимум 4 цифры.');
-    }
-  };
-
-  const handleReset = () => {
-    if (window.confirm('Сбросить PIN и отключить блокировку?')) {
-      localStorage.removeItem(PIN_KEY);
-      localStorage.removeItem('biometry_enabled');
-      setHasPin(false);
-      setBiometryEnabled(false);
-      setMessage('PIN сброшен!');
-    }
-  };
-
-  const handleBiometryToggle = () => {
-    if (!biometryEnabled) {
-      // Включаем биометрию
-      localStorage.setItem('biometry_enabled', '1');
-      setBiometryEnabled(true);
-      setMessage('Биометрия включена. Для разблокировки можно использовать отпечаток или PIN.');
-    } else {
-      // Отключаем биометрию
-      localStorage.removeItem('biometry_enabled');
-      setBiometryEnabled(false);
-      setMessage('Биометрия отключена. Для разблокировки используется только PIN.');
-    }
-  };
-
-  return (
-    <div className="flex flex-col gap-2">
-      {!hasPin && (
-        <button className="px-4 py-2 rounded bg-orange-500 text-white" onClick={handleSet}>Включить блокировку</button>
-      )}
-      {hasPin && (
-        <>
-          <button className="px-4 py-2 rounded bg-orange-500 text-white" onClick={handleChange}>Сменить PIN</button>
-          <button className="px-4 py-2 rounded bg-gray-400 text-white" onClick={handleReset}>Сбросить блокировку</button>
-          {biometryAvailable && (
-            <label className="flex items-center gap-2 mt-2">
-              <input type="checkbox" checked={biometryEnabled} onChange={handleBiometryToggle} />
-              <span>Разрешить разблокировку по отпечатку</span>
-            </label>
-          )}
-          {biometryEnabled && <div className="text-xs text-orange-600">Можно использовать отпечаток или PIN</div>}
-        </>
-      )}
-      {message && <div className="text-sm text-orange-600 mt-1">{message}</div>}
-    </div>
-  );
-}
