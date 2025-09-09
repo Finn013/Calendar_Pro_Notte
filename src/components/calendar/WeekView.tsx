@@ -244,7 +244,7 @@ const DayMenu = ({ day, onSetColor, onSetIcon, onCompleteAll, onMoveAll }: any) 
   const handleAction = (action: Function) => { action(); setShowPalette(false); setShowIconPalette(false); }
 
   return (
-    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} onClick={e => e.stopPropagation()} className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-xl z-20 border dark:border-gray-700">
+    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} onClick={(e: React.MouseEvent) => e.stopPropagation()} className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-xl z-20 border dark:border-gray-700">
       <ul className="p-1 text-sm text-gray-700 dark:text-gray-200">
         <li onClick={() => {setShowPalette(!showPalette); setShowIconPalette(false);}} className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"><Palette size={16}/>Цвет дня</li>
         {showPalette && <div className="flex flex-wrap gap-2 p-2 justify-center border-t dark:border-gray-700">{colors.map(color => <button key={color} onClick={() => handleAction(() => onSetColor(day.dateKey, color))} className="w-7 h-7 rounded-full border dark:border-gray-600" style={{backgroundColor: color}} />)}</div>}

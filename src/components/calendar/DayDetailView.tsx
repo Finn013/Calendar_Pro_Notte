@@ -89,7 +89,7 @@ export default function DayDetailView({ isOpen, onClose, date }: DayDetailViewPr
           <motion.div 
             initial={{ y: -50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 50, opacity: 0 }}
             className="bg-white dark:bg-gray-800 rounded-xl shadow-lg w-full max-w-md relative"
-            onClick={e => e.stopPropagation()}
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center p-4 border-b dark:border-gray-700">
               <h2 className="text-lg font-bold">День - {date.toLocaleDateString('ru-RU')}</h2>
