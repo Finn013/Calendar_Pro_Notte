@@ -1,11 +1,11 @@
 {
-  "name": "Календарь с делами",
-  "short_name": "Календарь",
-  "description": "Организуйте свой день с помощью календаря",
+  "name": "Calendar Pro Notte",
+  "short_name": "Calendar Pro",
+  "description": "Профессиональный календарь с заметками и списками",
   "start_url": "/",
   "display": "standalone",
+  "theme_color": "#3B82F6",
   "background_color": "#ffffff",
-  "theme_color": "#4CAF50",
   "icons": [
     {
       "src": "/vite.svg",
