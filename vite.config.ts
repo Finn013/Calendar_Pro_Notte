@@ -13,13 +13,13 @@ export default defineConfig({
         name: 'Calendar Pro Notte',
         short_name: 'Calendar Pro',
         description: 'Профессиональный календарь с заметками и списками',
-        start_url: './',
+        start_url: '/Calendar_Pro_Notte/',
         display: 'standalone',
         theme_color: '#3B82F6',
         background_color: '#ffffff',
         icons: [
           {
-            src: './vite.svg',
+            src: '/Calendar_Pro_Notte/vite.svg',
             sizes: 'any',
             type: 'image/svg+xml'
           }
