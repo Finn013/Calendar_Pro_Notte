@@ -1,8 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa';
+
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   base: '/Calendar_Pro_Notte/',
   plugins: [
     react(),
@@ -82,7 +83,7 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000
   },
   define: {
-    // Убираем console.log в production
-    'console.log': import.meta.env.PROD ? '() => {}' : 'console.log'
+    // Correctly use the 'mode' variable
+    'console.log': mode === 'production' ? '() => {}' : 'console.log'
   }
-})
+}))
