@@ -83,7 +83,6 @@ export default defineConfig(({ mode }) => ({
     chunkSizeWarningLimit: 1000
   },
   define: {
-    // Correctly use the 'mode' variable
     'console.log': mode === 'production' ? '() => {}' : 'console.log'
   }
 }))
