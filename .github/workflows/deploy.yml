@@ -13,6 +13,8 @@ concurrency:
   cancel-in-progress: false
 jobs:
   build-and-deploy:
+        environment:
+      name: github-pages
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
