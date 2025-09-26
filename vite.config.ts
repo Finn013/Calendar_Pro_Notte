@@ -4,10 +4,11 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  base: '/Calendar_Pro_Notte/',
+  base: '/',
   plugins: [
     react(),
-    VitePWA({
+    // Temporarily disable PWA for development
+    ...(mode === 'production' ? [VitePWA({
       registerType: 'prompt',
       injectRegister: 'inline',
       workbox: {
@@ -35,7 +36,7 @@ export default defineConfig(({ mode }) => ({
             }
           }
         ],
-        navigateFallback: '/Calendar_Pro_Notte/index.html',
+        navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/_/, /\/[^/?]+\.[^/]+$/],
         cleanupOutdatedCaches: true,
         skipWaiting: false,
@@ -45,29 +46,29 @@ export default defineConfig(({ mode }) => ({
         name: 'Calendar Pro Notte',
         short_name: 'Calendar Pro',
         description: 'Профессиональный календарь с заметками и списками',
-        start_url: '/Calendar_Pro_Notte/',
+        start_url: '/',
         display: 'standalone',
         theme_color: '#3B82F6',
         background_color: '#ffffff',
         icons: [
           {
-            src: '/Calendar_Pro_Notte/vite.svg',
+            src: '/vite.svg',
             sizes: 'any',
             type: 'image/svg+xml'
           },
           {
-            src: '/Calendar_Pro_Notte/vite.svg',
+            src: '/vite.svg',
             sizes: '512x512',
             type: 'image/svg+xml',
             purpose: 'any maskable'
           }
         ]
       }
-    })
+    })] : [])
   ],
   server: {
     host: true,
-    port: 5173
+    port: 3000
   },
   build: {
     outDir: 'dist',
@@ -81,8 +82,5 @@ export default defineConfig(({ mode }) => ({
       }
     },
     chunkSizeWarningLimit: 1000
-  },
-  define: {
-    'console.log': mode === 'production' ? '() => {}' : 'console.log'
   }
 }))
