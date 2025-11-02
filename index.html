@@ -6,11 +6,215 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#3B82F6" />
     <meta name="description" content="Calendar Pro Notte - профессиональный календарь с заметками и списками" />
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="./manifest.json" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Calendar Pro" />
+    
     <title>Calendar Pro Notte</title>
     <script type="module" crossorigin src="/Calendar_Pro_Notte/assets/index-Bp3ii3Si.js"></script>
     <link rel="stylesheet" crossorigin href="/Calendar_Pro_Notte/assets/index-DmjfWIx_.css">
+    
+    <!-- Mobile Settings Responsive Fixes -->
+    <style>
+      /* Mobile-specific fixes for settings panel */
+      @media (max-width: 640px) {
+        /* Settings modal/dialog fixes */
+        [role="dialog"],
+        .settings-panel,
+        .modal,
+        div[class*="settings"],
+        div[class*="Settings"] {
+          max-width: 100vw !important;
+          width: 100% !important;
+          margin: 0 !important;
+          border-radius: 0 !important;
+          max-height: 100vh !important;
+          overflow-y: auto !important;
+        }
+        
+        /* Settings content padding */
+        [role="dialog"] > div,
+        .settings-panel > div,
+        .modal > div {
+          padding: 1rem !important;
+        }
+        
+        /* Settings header */
+        [role="dialog"] h2,
+        [role="dialog"] h3,
+        .settings-panel h2,
+        .settings-panel h3 {
+          font-size: 1.25rem !important;
+          margin-bottom: 1rem !important;
+        }
+        
+        /* Settings buttons */
+        [role="dialog"] button,
+        .settings-panel button {
+          min-height: 44px !important;
+          padding: 0.75rem 1rem !important;
+          font-size: 1rem !important;
+          width: 100% !important;
+          margin-bottom: 0.5rem !important;
+        }
+        
+        /* Settings input fields */
+        [role="dialog"] input,
+        [role="dialog"] select,
+        [role="dialog"] textarea,
+        .settings-panel input,
+        .settings-panel select,
+        .settings-panel textarea {
+          width: 100% !important;
+          min-height: 44px !important;
+          font-size: 16px !important;
+          padding: 0.75rem !important;
+        }
+        
+        /* Settings form groups */
+        [role="dialog"] .form-group,
+        [role="dialog"] .field,
+        .settings-panel .form-group,
+        .settings-panel .field {
+          margin-bottom: 1rem !important;
+        }
+        
+        /* Settings labels */
+        [role="dialog"] label,
+        .settings-panel label {
+          display: block !important;
+          margin-bottom: 0.5rem !important;
+          font-size: 0.875rem !important;
+        }
+        
+        /* Overlay backdrop */
+        [role="dialog"]::backdrop,
+        .modal-backdrop,
+        .overlay {
+          background-color: rgba(0, 0, 0, 0.5) !important;
+        }
+        
+        /* Close button positioning */
+        [role="dialog"] button[aria-label*="close"],
+        [role="dialog"] button[aria-label*="Close"],
+        [role="dialog"] button[aria-label*="закрыть"],
+        [role="dialog"] button[aria-label*="Закрыть"] {
+          position: sticky !important;
+          top: 0 !important;
+          right: 0 !important;
+          z-index: 10 !important;
+        }
+        
+        /* Scrollable content */
+        [role="dialog"] > div:first-child,
+        .settings-panel > div:first-child {
+          overflow-y: auto !important;
+          -webkit-overflow-scrolling: touch !important;
+        }
+        
+        /* Color picker and special inputs */
+        [role="dialog"] input[type="color"],
+        .settings-panel input[type="color"] {
+          width: 100% !important;
+          height: 60px !important;
+        }
+        
+        /* Checkbox and radio groups */
+        [role="dialog"] input[type="checkbox"],
+        [role="dialog"] input[type="radio"],
+        .settings-panel input[type="checkbox"],
+        .settings-panel input[type="radio"] {
+          width: auto !important;
+          min-height: 24px !important;
+          margin-right: 0.5rem !important;
+        }
+        
+        /* Settings sections */
+        [role="dialog"] section,
+        .settings-panel section {
+          margin-bottom: 1.5rem !important;
+        }
+        
+        /* Dividers */
+        [role="dialog"] hr,
+        .settings-panel hr {
+          margin: 1.5rem 0 !important;
+        }
+      }
+      
+      /* Extra small screens */
+      @media (max-width: 375px) {
+        [role="dialog"] > div,
+        .settings-panel > div {
+          padding: 0.75rem !important;
+        }
+        
+        [role="dialog"] button,
+        .settings-panel button {
+          font-size: 0.875rem !important;
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"></div>
+    
+    <!-- Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js')
+            .then((registration) => {
+              console.log('✅ Service Worker registered successfully:', registration.scope);
+              
+              // Check for updates
+              registration.addEventListener('updatefound', () => {
+                const newWorker = registration.installing;
+                console.log('🔄 Service Worker update found');
+                
+                newWorker.addEventListener('statechange', () => {
+                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    console.log('✨ New Service Worker available');
+                    // Optionally notify user about update
+                  }
+                });
+              });
+            })
+            .catch((error) => {
+              console.error('❌ Service Worker registration failed:', error);
+            });
+        });
+        
+        // Handle service worker updates
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!refreshing) {
+            refreshing = true;
+            console.log('🔄 Service Worker updated, reloading page...');
+            window.location.reload();
+          }
+        });
+      } else {
+        console.warn('⚠️ Service Workers are not supported in this browser');
+      }
+      
+      // PWA install prompt
+      let deferredPrompt;
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        console.log('💾 PWA install prompt available');
+      });
+      
+      // Log PWA installation
+      window.addEventListener('appinstalled', () => {
+        console.log('✅ PWA installed successfully');
+        deferredPrompt = null;
+      });
+    </script>
   </body>
 </html>
