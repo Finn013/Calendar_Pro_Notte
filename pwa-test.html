@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PWA Test - Calendar Pro Notte</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .status.success {
+            background: #10b981;
+            color: white;
+        }
+        .status.error {
+            background: #ef4444;
+            color: white;
+        }
+        .status.pending {
+            background: #f59e0b;
+            color: white;
+        }
+        h1 {
+            color: #3B82F6;
+        }
+        h2 {
+            font-size: 18px;
+            margin-top: 0;
+        }
+        pre {
+            background: #f3f4f6;
+            padding: 12px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        button {
+            background: #3B82F6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 PWA Test Dashboard</h1>
+    
+    <div class="test-card">
+        <h2>Service Worker Status</h2>
+        <div id="sw-status">
+            <span class="status pending">Checking...</span>
+        </div>
+        <pre id="sw-info"></pre>
+    </div>
+    
+    <div class="test-card">
+        <h2>Manifest Status</h2>
+        <div id="manifest-status">
+            <span class="status pending">Checking...</span>
+        </div>
+        <pre id="manifest-info"></pre>
+    </div>
+    
+    <div class="test-card">
+        <h2>Cache Status</h2>
+        <div id="cache-status">
+            <span class="status pending">Checking...</span>
+        </div>
+        <pre id="cache-info"></pre>
+    </div>
+    
+    <div class="test-card">
+        <h2>Offline Test</h2>
+        <p>Test if the app works offline:</p>
+        <button onclick="testOffline()">Test Offline Mode</button>
+        <button onclick="clearCache()">Clear Cache</button>
+        <div id="offline-result" style="margin-top: 10px;"></div>
+    </div>
+    
+    <div class="test-card">
+        <h2>Mobile Settings Test</h2>
+        <p>Current viewport: <span id="viewport-size"></span></p>
+        <p>Test responsive settings on different screen sizes:</p>
+        <button onclick="testMobile(375)">iPhone SE (375px)</button>
+        <button onclick="testMobile(390)">iPhone 12 (390px)</button>
+        <button onclick="testMobile(414)">iPhone Plus (414px)</button>
+    </div>
+
+    <script>
+        // Check Service Worker
+        async function checkServiceWorker() {
+            const statusEl = document.getElementById('sw-status');
+            const infoEl = document.getElementById('sw-info');
+            
+            if ('serviceWorker' in navigator) {
+                try {
+                    const registration = await navigator.serviceWorker.getRegistration();
+                    if (registration) {
+                        statusEl.innerHTML = '<span class="status success">✅ Registered</span>';
+                        infoEl.textContent = `Scope: ${registration.scope}\nState: ${registration.active ? registration.active.state : 'N/A'}`;
+                    } else {
+                        statusEl.innerHTML = '<span class="status error">❌ Not Registered</span>';
+                        infoEl.textContent = 'Service Worker not found. Please load the main app first.';
+                    }
+                } catch (error) {
+                    statusEl.innerHTML = '<span class="status error">❌ Error</span>';
+                    infoEl.textContent = error.message;
+                }
+            } else {
+                statusEl.innerHTML = '<span class="status error">❌ Not Supported</span>';
+                infoEl.textContent = 'Service Workers not supported in this browser';
+            }
+        }
+        
+        // Check Manifest
+        async function checkManifest() {
+            const statusEl = document.getElementById('manifest-status');
+            const infoEl = document.getElementById('manifest-info');
+            
+            try {
+                const response = await fetch('./manifest.json');
+                if (response.ok) {
+                    const manifest = await response.json();
+                    statusEl.innerHTML = '<span class="status success">✅ Found</span>';
+                    infoEl.textContent = JSON.stringify(manifest, null, 2);
+                } else {
+                    statusEl.innerHTML = '<span class="status error">❌ Not Found</span>';
+                    infoEl.textContent = `HTTP ${response.status}`;
+                }
+            } catch (error) {
+                statusEl.innerHTML = '<span class="status error">❌ Error</span>';
+                infoEl.textContent = error.message;
+            }
+        }
+        
+        // Check Cache
+        async function checkCache() {
+            const statusEl = document.getElementById('cache-status');
+            const infoEl = document.getElementById('cache-info');
+            
+            if ('caches' in window) {
+                try {
+                    const cacheNames = await caches.keys();
+                    if (cacheNames.length > 0) {
+                        statusEl.innerHTML = '<span class="status success">✅ Active</span>';
+                        let info = `Found ${cacheNames.length} cache(s):\n\n`;
+                        
+                        for (const cacheName of cacheNames) {
+                            const cache = await caches.open(cacheName);
+                            const keys = await cache.keys();
+                            info += `${cacheName}: ${keys.length} items\n`;
+                            keys.forEach(req => {
+                                info += `  - ${req.url}\n`;
+                            });
+                        }
+                        infoEl.textContent = info;
+                    } else {
+                        statusEl.innerHTML = '<span class="status pending">⚠️ Empty</span>';
+                        infoEl.textContent = 'No caches found. Load the main app to populate cache.';
+                    }
+                } catch (error) {
+                    statusEl.innerHTML = '<span class="status error">❌ Error</span>';
+                    infoEl.textContent = error.message;
+                }
+            } else {
+                statusEl.innerHTML = '<span class="status error">❌ Not Supported</span>';
+                infoEl.textContent = 'Cache API not supported';
+            }
+        }
+        
+        // Test offline
+        async function testOffline() {
+            const resultEl = document.getElementById('offline-result');
+            resultEl.innerHTML = '<span class="status pending">Testing...</span>';
+            
+            try {
+                const response = await fetch('./index.html');
+                if (response.ok) {
+                    resultEl.innerHTML = '<span class="status success">✅ App loads successfully!</span>';
+                } else {
+                    resultEl.innerHTML = '<span class="status error">❌ Failed to load</span>';
+                }
+            } catch (error) {
+                resultEl.innerHTML = '<span class="status error">❌ Error: ' + error.message + '</span>';
+            }
+        }
+        
+        // Clear cache
+        async function clearCache() {
+            try {
+                const cacheNames = await caches.keys();
+                await Promise.all(cacheNames.map(name => caches.delete(name)));
+                alert('✅ Cache cleared! Reload the page to test.');
+                location.reload();
+            } catch (error) {
+                alert('❌ Error clearing cache: ' + error.message);
+            }
+        }
+        
+        // Test mobile viewport
+        function testMobile(width) {
+            alert(`To test ${width}px width:\n\n1. Open DevTools (F12)\n2. Toggle device toolbar (Ctrl+Shift+M)\n3. Set width to ${width}px\n4. Open the main app and test settings`);
+        }
+        
+        // Update viewport size
+        function updateViewport() {
+            document.getElementById('viewport-size').textContent = 
+                `${window.innerWidth}px × ${window.innerHeight}px`;
+        }
+        
+        // Initialize
+        window.addEventListener('load', () => {
+            checkServiceWorker();
+            checkManifest();
+            checkCache();
+            updateViewport();
+        });
+        
+        window.addEventListener('resize', updateViewport);
+    </script>
+</body>
+</html>
